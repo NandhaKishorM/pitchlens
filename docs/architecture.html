@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Pitchlens · How it works</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    width: 210mm; height: 296mm; overflow: hidden;
+    padding: 10mm 13mm 0;
+    font: 9pt/1.42 -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    color: #16181d; background: #fff;
+    -webkit-print-color-adjust: exact;
+  }
+  .brand { display: flex; align-items: center; gap: 6pt; font-size: 7.5pt; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #4460d6; }
+  .brand i { width: 9pt; height: 9pt; border-radius: 3pt; background: #6f8fff; display: inline-block; }
+  h1 { font-size: 20pt; letter-spacing: -.025em; margin: 3pt 0 2pt; line-height: 1.15; }
+  .lede { color: #4b5563; font-size: 9.6pt; margin: 0; }
+  .pills { display: flex; gap: 5pt; margin-top: 6pt; }
+  .pill { border: 1px solid #dfe3ea; border-radius: 20pt; padding: 1pt 8pt; font-size: 7.6pt; color: #374151; }
+  .pill b { color: #16935c; }
+
+  h2 { font-size: 7.4pt; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #6b7280; margin: 0 0 5pt; }
+  section { margin-top: 9pt; }
+
+  /* pipeline */
+  .flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14pt; }
+  .step { position: relative; border: 1px solid #e3e6ec; border-radius: 8pt; padding: 7pt 9pt 6pt; background: #fff; }
+  .step:not(:last-child)::after { content: ""; position: absolute; right: -12pt; top: 50%; width: 10pt; height: 1.5pt; background: #9fb1f5; }
+  .step:not(:last-child)::before { content: ""; position: absolute; right: -12.5pt; top: calc(50% - 3.2pt); border: 4pt solid transparent; border-left: 5pt solid #9fb1f5; border-right: 0; }
+  .step.io { background: #f8f9fb; }
+  .num { width: 14pt; height: 14pt; border-radius: 4.5pt; background: #edf1ff; color: #4460d6; display: grid; place-items: center; font-weight: 700; font-size: 7.6pt; }
+  .step h3 { font-size: 9.4pt; margin: 4pt 0 1pt; }
+  .step p { margin: 0; color: #4b5563; font-size: 7.8pt; line-height: 1.38; }
+  .tech { margin-top: 4pt; font: 6.8pt Menlo, monospace; color: #4460d6; background: #f3f5ff; border-radius: 4pt; padding: 1.5pt 4pt; display: inline-block; }
+
+  /* architecture */
+  .arch { border: 1px solid #e3e6ec; border-radius: 8pt; padding: 6pt 0 3pt; text-align: center; }
+  .arch svg { width: 86%; display: inline-block; }
+  svg text { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; }
+
+  .cols { display: grid; grid-template-columns: 1.25fr 1fr; gap: 11pt; }
+  table { width: 100%; border-collapse: collapse; font-size: 7.8pt; }
+  td, th { text-align: left; padding: 2.6pt 0; border-bottom: 1px solid #eef0f4; vertical-align: top; }
+  th { font-size: 6.8pt; color: #8a8f98; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
+  td.f { font: 7.3pt Menlo, monospace; color: #4460d6; white-space: nowrap; padding-right: 8pt; }
+  tr:last-child td { border-bottom: 0; }
+
+  .box { border: 1px solid #e3e6ec; border-radius: 8pt; padding: 7pt 10pt; }
+  ul { margin: 0; padding-left: 11pt; }
+  li { margin-bottom: 2pt; }
+  .gets { display: grid; grid-template-columns: 1fr 1fr; column-gap: 20pt; }
+  .muted { color: #6b7280; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8pt; }
+  .stat { border: 1px solid #e3e6ec; border-radius: 8pt; padding: 6pt 9pt; }
+  .stat .v { font-size: 14pt; font-weight: 750; letter-spacing: -.02em; line-height: 1.15; }
+  .stat .k { font-size: 7.3pt; color: #6b7280; }
+  .foot { margin-top: 7pt; color: #9aa0aa; font-size: 6.8pt; display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+  <div class="brand"><i></i>Pitchlens</div>
+  <h1>How Pitchlens works</h1>
+  <p class="lede">A desktop app that turns a sales call recording into a coaching report, using two small AI models on your Mac.</p>
+  <div class="pills">
+    <span class="pill"><b>●</b> 100% on-device</span>
+    <span class="pill">Zero network egress</span>
+    <span class="pill">Apple Silicon GPU (Metal)</span>
+    <span class="pill">Electron · llama.cpp · ffmpeg</span>
+  </div>
+
+  <section>
+    <h2>The pipeline — from recording to report</h2>
+    <div class="flow">
+      <div class="step io">
+        <div class="num">1</div>
+        <h3>Upload</h3>
+        <p>Rep drops in a call recording (MP3, WAV, M4A…) or picks a sample.</p>
+        <span class="tech">drag &amp; drop</span>
+      </div>
+      <div class="step">
+        <div class="num">2</div>
+        <h3>Prepare audio</h3>
+        <p>Converted to 16 kHz mono and cut into ~25 s pieces at natural pauses.</p>
+        <span class="tech">ffmpeg</span>
+      </div>
+      <div class="step">
+        <div class="num">3</div>
+        <h3>Transcribe</h3>
+        <p>Each piece becomes text. Lines appear in the app live as they finish.</p>
+        <span class="tech">Qwen3-ASR 0.6B</span>
+      </div>
+      <div class="step">
+        <div class="num">4</div>
+        <h3>Analyze</h3>
+        <p>The language model reads the transcript like a sales coach and fills in the report.</p>
+        <span class="tech">Qwen3.5 2B</span>
+      </div>
+      <div class="step io">
+        <div class="num">5</div>
+        <h3>Report</h3>
+        <p>Shown as cards, saved to history, exported as PDF or copied.</p>
+        <span class="tech">UI · PDF</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Architecture — what talks to what</h2>
+    <div class="arch">
+      <svg viewBox="0 0 720 196" role="img" aria-label="Architecture diagram">
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#8da2ee"/>
+          </marker>
+        </defs>
+
+        <rect x="1" y="1" width="718" height="194" rx="10" fill="none" stroke="#c9d3f7" stroke-dasharray="4 4"/>
+        <text x="12" y="17" font-size="9" fill="#4460d6" font-weight="700" letter-spacing="1">YOUR MAC — NOTHING CROSSES THIS LINE</text>
+
+        <g font-size="10.5">
+          <rect x="14" y="68" width="138" height="58" rx="8" fill="#f3f5ff" stroke="#b9c6f5"/>
+          <text x="83" y="92" text-anchor="middle" font-weight="700" fill="#16181d">Window (UI)</text>
+          <text x="83" y="108" text-anchor="middle" font-size="8.5" fill="#6b7280">upload · progress · report</text>
+
+          <rect x="196" y="68" width="130" height="58" rx="8" fill="#fff" stroke="#d6dbe4"/>
+          <text x="261" y="92" text-anchor="middle" font-weight="700" fill="#16181d">Preload bridge</text>
+          <text x="261" y="108" text-anchor="middle" font-size="8.5" fill="#6b7280">safe, limited API</text>
+
+          <rect x="370" y="60" width="150" height="74" rx="8" fill="#fff" stroke="#d6dbe4"/>
+          <text x="445" y="85" text-anchor="middle" font-weight="700" fill="#16181d">Main process</text>
+          <text x="445" y="101" text-anchor="middle" font-size="8.5" fill="#6b7280">runs the pipeline</text>
+          <text x="445" y="114" text-anchor="middle" font-size="8.5" fill="#6b7280">starts engines · saves history</text>
+
+          <rect x="580" y="26" width="128" height="44" rx="8" fill="#f0faf5" stroke="#a9dcc3"/>
+          <text x="644" y="44" text-anchor="middle" font-weight="700" fill="#16181d">Speech engine</text>
+          <text x="644" y="59" text-anchor="middle" font-size="8.5" fill="#6b7280">llama-server · ASR</text>
+
+          <rect x="580" y="80" width="128" height="44" rx="8" fill="#f0faf5" stroke="#a9dcc3"/>
+          <text x="644" y="98" text-anchor="middle" font-weight="700" fill="#16181d">Analysis engine</text>
+          <text x="644" y="113" text-anchor="middle" font-size="8.5" fill="#6b7280">llama-server · 2B LLM</text>
+
+          <rect x="580" y="140" width="128" height="40" rx="8" fill="#fff" stroke="#d6dbe4"/>
+          <text x="644" y="157" text-anchor="middle" font-weight="700" fill="#16181d">ffmpeg</text>
+          <text x="644" y="171" text-anchor="middle" font-size="8.5" fill="#6b7280">decode &amp; split audio</text>
+
+          <rect x="370" y="150" width="150" height="34" rx="8" fill="#fff" stroke="#d6dbe4"/>
+          <text x="445" y="165" text-anchor="middle" font-weight="700" fill="#16181d" font-size="9.5">Local disk</text>
+          <text x="445" y="177" text-anchor="middle" font-size="8" fill="#6b7280">GGUF models · saved reports</text>
+        </g>
+
+        <g stroke="#8da2ee" stroke-width="1.5" fill="none">
+          <line x1="152" y1="97" x2="194" y2="97" marker-end="url(#ar)" marker-start="url(#ar)"/>
+          <line x1="326" y1="97" x2="368" y2="97" marker-end="url(#ar)" marker-start="url(#ar)"/>
+          <path d="M520 78 C 550 78, 550 48, 578 48" marker-end="url(#ar)"/>
+          <line x1="520" y1="102" x2="578" y2="102" marker-end="url(#ar)"/>
+          <path d="M520 126 C 550 126, 550 160, 578 160" marker-end="url(#ar)"/>
+          <line x1="445" y1="134" x2="445" y2="148" marker-end="url(#ar)"/>
+        </g>
+        <g font-size="8" fill="#4460d6" text-anchor="middle">
+          <text x="173" y="90">IPC</text>
+          <text x="347" y="90">IPC</text>
+          <text x="549" y="96">HTTP</text>
+          <text x="532" y="150">spawn</text>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <section class="cols">
+    <div>
+      <h2>Components</h2>
+      <table>
+        <tr><th>File</th><th>Job</th></tr>
+        <tr><td class="f">renderer/app.js</td><td>Everything you see: upload, progress, report, history</td></tr>
+        <tr><td class="f">main/preload.js</td><td>The only door between the UI and the system</td></tr>
+        <tr><td class="f">main/main.js</td><td>Window, network lock, files, PDF export</td></tr>
+        <tr><td class="f">core/audio.js</td><td>Convert audio, find pauses, split into chunks</td></tr>
+        <tr><td class="f">core/transcribe.js</td><td>Send chunks to the speech engine, clean the text</td></tr>
+        <tr><td class="f">core/analyze.js</td><td>Coach prompt, report structure, filter bad output</td></tr>
+        <tr><td class="f">core/llamaServer.js</td><td>Start, health-check and stop the model servers</td></tr>
+        <tr><td class="f">main/reportPdf.js</td><td>Lay out the report and print it to PDF</td></tr>
+      </table>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8pt">
+      <div class="box">
+        <h2>Models (GGUF, 2026)</h2>
+        <table>
+          <tr><td><b>Speech → text</b><br><span class="muted">Qwen3-ASR 0.6B · Q8_0 · Jan 2026</span></td><td style="text-align:right">1.0 GB</td></tr>
+          <tr><td><b>Coaching report</b><br><span class="muted">Qwen3.5 2B · Q4_K_M · Feb 2026</span></td><td style="text-align:right">1.3 GB</td></tr>
+        </table>
+      </div>
+      <div class="box">
+        <h2>Privacy by design</h2>
+        <ul>
+          <li>Model servers are offline and listen only on <b style="white-space:nowrap">127.0.0.1</b></li>
+          <li>The window blocks every non-local request</li>
+          <li>Audio, transcripts and reports stay on the Mac</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What the sales rep gets</h2>
+    <div class="box">
+      <ul class="gets">
+        <li><b>Summary</b>, call type and buyer sentiment</li>
+        <li><b>Mistakes</b> with evidence and a better way to say it</li>
+        <li><b>Conversion probability</b> (70% model + 30% skill rubric)</li>
+        <li><b>Objections</b> raised and a suggested response</li>
+        <li><b>Skill scores</b>: rapport, discovery, pitch, objections, closing</li>
+        <li><b>Suggestions</b> for this call, <b>recommendations</b> to practise</li>
+        <li><b>Next steps</b> with the prospect</li>
+        <li>Timestamped <b>transcript</b> with click-to-play audio</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <h2>Measured on a MacBook Air M5 (16 GB)</h2>
+    <div class="stats">
+      <div class="stat"><div class="v">~1 s</div><div class="k">to load each model</div></div>
+      <div class="stat"><div class="v">28×</div><div class="k">faster than real time to transcribe</div></div>
+      <div class="stat"><div class="v">~50 tok/s</div><div class="k">report generation speed</div></div>
+      <div class="stat"><div class="v">24 s</div><div class="k">2-minute call → full report</div></div>
+    </div>
+  </section>
+
+  <div class="foot"><span>Pitchlens · On-device sales call coaching</span><span>Measured with OBS and Google Meet also running</span></div>
+</body>
+</html>

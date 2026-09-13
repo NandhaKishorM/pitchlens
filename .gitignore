@@ -1,0 +1,8 @@
+node_modules/
+.DS_Store
+
+# Test recordings and benchmark output (third-party audio, may contain personal data)
+samples/
+
+# Partial downloads
+*.part

@@ -1,0 +1,20 @@
+{
+  "name": "pitchlens",
+  "productName": "Pitchlens",
+  "version": "1.0.0",
+  "description": "On-device sales call transcription and coaching (Qwen3-ASR + Qwen3.5 GGUF via llama.cpp). Zero egress.",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "bench": "node scripts/bench.js",
+    "models": "node scripts/download-models.js",
+    "samples": "node scripts/download-samples.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^44.3.0"
+  }
+}
