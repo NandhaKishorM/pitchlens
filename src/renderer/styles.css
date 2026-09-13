@@ -15,14 +15,14 @@
   --bad: #f26b6b;
   --radius: 12px;
   --ease: cubic-bezier(.2, .8, .2, 1);
-  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --mono: ui-monospace, "SF Mono", Menlo, "Cascadia Mono", Consolas, monospace;
   color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); }
 body {
-  font: 13.5px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+  font: 13.5px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", "Inter", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
   user-select: none;
@@ -46,6 +46,9 @@ button { font: inherit; color: inherit; }
   min-height: 0;
 }
 .sidebar-drag { position: absolute; inset: 0 0 auto 0; height: 48px; }
+/* Windows/Linux: no traffic lights on the left; caption buttons sit top-right. */
+html[data-platform="win32"] .sidebar, html[data-platform="linux"] .sidebar { padding-top: 14px; }
+html[data-platform="win32"] .topbar, html[data-platform="linux"] .topbar { padding-right: 150px; }
 .brand { display: flex; align-items: center; gap: 10px; padding: 0 6px 8px; }
 .brand-mark {
   width: 22px; height: 22px; border-radius: 7px; background: var(--accent);

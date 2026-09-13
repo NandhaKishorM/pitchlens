@@ -52,7 +52,11 @@ function bootEngines() {
     engines.asr.onState = broadcastStatus;
     engines.llm.onState = broadcastStatus;
   }
-  for (const e of [engines.asr, engines.llm]) e.start().catch((err) => console.error(err.message));
+  for (const e of [engines.asr, engines.llm]) {
+    e.start().catch((err) => {
+      if (e.state !== 'stopped') console.error(err.message);
+    });
+  }
 }
 
 function createWindow() {
@@ -63,8 +67,12 @@ function createWindow() {
     minHeight: 640,
     show: false,
     backgroundColor: '#0a0b0d',
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 18, y: 18 },
+    autoHideMenuBar: true,
+    // macOS: inset traffic lights over the sidebar. Windows/Linux: native
+    // caption buttons drawn over the right side of the top bar.
+    ...(process.platform === 'darwin'
+      ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 18, y: 18 } }
+      : { titleBarStyle: 'hidden', titleBarOverlay: { color: '#0a0b0d', symbolColor: '#9aa0aa', height: 47 } }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

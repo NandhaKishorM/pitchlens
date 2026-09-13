@@ -7,6 +7,7 @@ const subscribe = (channel) => (callback) => {
 };
 
 contextBridge.exposeInMainWorld('pitchlens', {
+  platform: process.platform,
   engineStatus: () => ipcRenderer.invoke('engines:status'),
   retryEngines: () => ipcRenderer.invoke('engines:retry'),
   onEngineState: subscribe('engines:state'),

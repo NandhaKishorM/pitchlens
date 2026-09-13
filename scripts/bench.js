@@ -14,6 +14,7 @@ const { transcriptToText } = require('../src/core/analyze');
 const AUDIO = /\.(mp3|wav|m4a|ogg|opus|flac|webm|aac)$/i;
 
 function rssMb(pid) {
+  if (!pid || process.platform === 'win32') return null;
   try {
     return Math.round(parseInt(execFileSync('ps', ['-o', 'rss=', '-p', String(pid)]).toString(), 10) / 1024);
   } catch {
@@ -71,7 +72,7 @@ async function main() {
       console.log(`\r  audio ${s.duration.toFixed(0)}s · ${s.chunks} chunks`.padEnd(60));
       console.log(`  prepare ${s.prepareMs} ms · asr ${s.asrMs} ms (${(s.duration / (s.asrMs / 1000)).toFixed(1)}x realtime)`);
       console.log(`  llm ${s.llmMs} ms · prompt ${s.promptTokens} tok @ ${s.promptTps}/s · output ${s.outputTokens} tok @ ${s.outputTps}/s`);
-      console.log(`  total ${(s.totalMs / 1000).toFixed(1)} s · rss speech ${mem.asr} MB · analysis ${mem.llm} MB`);
+      console.log(`  total ${(s.totalMs / 1000).toFixed(1)} s · rss speech ${mem.asr ?? 'n/a'} MB · analysis ${mem.llm ?? 'n/a'} MB`);
       console.log(`  → probability ${a.conversion_probability}% (model ${a.probability_breakdown.model}, rubric ${a.probability_breakdown.rubric}) · ${a.mistakes.length} mistakes`);
       console.log(`  → ${a.summary.slice(0, 220)}${a.summary.length > 220 ? '…' : ''}`);
 

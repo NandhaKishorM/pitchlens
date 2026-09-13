@@ -11,9 +11,13 @@ function modelPath(file) {
 // Returns a list of human-readable problems that prevent the engines from running.
 function checkRequirements() {
   const problems = [];
-  if (!findBin('llama-server')) problems.push('llama-server not found (brew install llama.cpp)');
-  if (!findBin('ffmpeg')) problems.push('ffmpeg not found (brew install ffmpeg)');
-  if (!findBin('ffprobe')) problems.push('ffprobe not found (brew install ffmpeg)');
+  const install = {
+    darwin: { llama: 'brew install llama.cpp', ffmpeg: 'brew install ffmpeg' },
+    win32: { llama: 'winget install llama.cpp', ffmpeg: 'winget install ffmpeg' },
+  }[process.platform] || { llama: 'install llama.cpp', ffmpeg: 'install ffmpeg' };
+  if (!findBin('llama-server')) problems.push(`llama-server not found (${install.llama}, or set PITCHLENS_LLAMA_SERVER)`);
+  if (!findBin('ffmpeg')) problems.push(`ffmpeg not found (${install.ffmpeg}, or set PITCHLENS_FFMPEG)`);
+  if (!findBin('ffprobe')) problems.push(`ffprobe not found (${install.ffmpeg}, or set PITCHLENS_FFPROBE)`);
   for (const file of [config.asr.model, config.asr.mmproj, config.llm.model]) {
     if (!fs.existsSync(modelPath(file))) problems.push(`Missing model: models/${file}`);
   }

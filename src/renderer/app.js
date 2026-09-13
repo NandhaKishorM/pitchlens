@@ -19,6 +19,7 @@ if (!api) {
   showFatal('Preload bridge failed to load (window.pitchlens is undefined)');
   throw new Error('window.pitchlens missing');
 }
+document.documentElement.dataset.platform = api.platform;
 
 const ICONS = {
   file: '<svg viewBox="0 0 24 24" class="icon"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',

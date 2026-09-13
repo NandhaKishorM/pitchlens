@@ -2,18 +2,45 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 
-const EXTRA_BIN_DIRS = ['/opt/homebrew/bin', '/usr/local/bin'];
+const IS_WIN = process.platform === 'win32';
 
-// Apps launched from Finder don't inherit the shell PATH, so also probe Homebrew dirs.
+// Explicit paths win, e.g. PITCHLENS_LLAMA_SERVER=C:\llama\llama-server.exe
+const ENV_OVERRIDES = {
+  'llama-server': 'PITCHLENS_LLAMA_SERVER',
+  ffmpeg: 'PITCHLENS_FFMPEG',
+  ffprobe: 'PITCHLENS_FFPROBE',
+};
+
+// Apps launched from Finder/Explorer may not inherit the shell PATH, so also
+// probe the usual package-manager install locations.
+function extraBinDirs() {
+  if (IS_WIN) {
+    const env = process.env;
+    const local = env.LOCALAPPDATA || '';
+    return [
+      path.join(local, 'Microsoft', 'WinGet', 'Links'),
+      path.join(env.USERPROFILE || '', 'scoop', 'shims'),
+      path.join(env.ProgramData || 'C:\\ProgramData', 'chocolatey', 'bin'),
+      path.join(env.ProgramFiles || 'C:\\Program Files', 'llama.cpp'),
+      path.join(env.ProgramFiles || 'C:\\Program Files', 'ffmpeg', 'bin'),
+    ];
+  }
+  return ['/opt/homebrew/bin', '/usr/local/bin'];
+}
+
 function findBin(name) {
-  const bundled = path.join(__dirname, '..', '..', 'bin', name);
-  const dirs = [path.dirname(bundled), ...(process.env.PATH || '').split(path.delimiter), ...EXTRA_BIN_DIRS];
+  const override = process.env[ENV_OVERRIDES[name]];
+  if (override && fs.existsSync(override)) return override;
+
+  const file = IS_WIN ? `${name}.exe` : name;
+  const bundled = path.join(__dirname, '..', '..', 'bin');
+  const dirs = [bundled, ...(process.env.PATH || '').split(path.delimiter), ...extraBinDirs()];
   for (const dir of dirs) {
     if (!dir) continue;
-    const candidate = path.join(dir, name);
+    const candidate = path.join(dir.replace(/^"|"$/g, ''), file);
     try {
-      fs.accessSync(candidate, fs.constants.X_OK);
-      return candidate;
+      fs.accessSync(candidate, IS_WIN ? fs.constants.F_OK : fs.constants.X_OK);
+      if (fs.statSync(candidate).isFile()) return candidate;
     } catch {}
   }
   return null;

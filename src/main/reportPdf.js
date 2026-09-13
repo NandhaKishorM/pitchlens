@@ -15,7 +15,7 @@ const olist = (items, empty = 'Nothing noted.') =>
 
 const CSS = `
   * { box-sizing: border-box; }
-  body { margin: 0; color: #16181d; font: 10pt/1.5 -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif; -webkit-print-color-adjust: exact; }
+  body { margin: 0; color: #16181d; font: 10pt/1.5 -apple-system, "SF Pro Text", "Segoe UI", "Helvetica Neue", Arial, sans-serif; -webkit-print-color-adjust: exact; }
   .brand { display: flex; align-items: center; gap: 6pt; font-size: 8pt; font-weight: 650; letter-spacing: .12em; text-transform: uppercase; color: #4d68d6; }
   .brand i { width: 9pt; height: 9pt; border-radius: 3pt; background: #6f8fff; display: inline-block; }
   h1 { font-size: 19pt; letter-spacing: -.02em; margin: 6pt 0 2pt; line-height: 1.2; word-break: break-word; }
@@ -29,7 +29,7 @@ const CSS = `
   .prob-label { font-weight: 650; margin-top: 4pt; }
   .meter { height: 5pt; background: #eceef2; border-radius: 5pt; overflow: hidden; margin: 8pt 0 6pt; }
   .meter i { display: block; height: 100%; border-radius: 5pt; }
-  .fine { color: #8a8f98; font-size: 8pt; font-family: Menlo, monospace; }
+  .fine { color: #8a8f98; font-size: 8pt; font-family: Menlo, Consolas, monospace; }
   .reason { color: #4b5563; font-size: 9pt; margin-top: 7pt; }
   .summary { font-size: 11pt; line-height: 1.6; margin: 0 0 9pt; }
   .tags span { display: inline-block; border: 1px solid #e4e6eb; border-radius: 20pt; padding: 1pt 7pt; font-size: 8.5pt; margin: 0 4pt 4pt 0; color: #374151; }
@@ -38,14 +38,14 @@ const CSS = `
   table.scores { width: 100%; border-collapse: collapse; }
   table.scores td { padding: 3.5pt 0; vertical-align: middle; }
   table.scores td.name { width: 38%; color: #4b5563; }
-  table.scores td.val { width: 34pt; text-align: right; font: 600 9pt Menlo, monospace; }
+  table.scores td.val { width: 34pt; text-align: right; font: 600 9pt Menlo, Consolas, monospace; }
   table.scores .meter { margin: 0 8pt; }
   ul, ol { margin: 0; padding-left: 14pt; }
   li { margin-bottom: 4pt; }
   .empty { color: #8a8f98; margin: 0; }
   .mistake { border: 1px solid #e4e6eb; border-left-width: 3pt; border-radius: 6pt; padding: 8pt 11pt; margin-bottom: 7pt; break-inside: avoid; }
   .m-head { display: flex; justify-content: space-between; gap: 10pt; font-weight: 650; margin-bottom: 4pt; }
-  .sev { font: 700 7pt Menlo, monospace; letter-spacing: .06em; text-transform: uppercase; padding: 1pt 5pt; border-radius: 3pt; color: #fff; white-space: nowrap; align-self: flex-start; }
+  .sev { font: 700 7pt Menlo, Consolas, monospace; letter-spacing: .06em; text-transform: uppercase; padding: 1pt 5pt; border-radius: 3pt; color: #fff; white-space: nowrap; align-self: flex-start; }
   .m-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10pt; font-size: 9.5pt; }
   .k { font-size: 7pt; text-transform: uppercase; letter-spacing: .1em; color: #8a8f98; margin-bottom: 2pt; }
   .quote { color: #4b5563; font-style: italic; border-left: 2px solid #e4e6eb; padding-left: 7pt; }
@@ -56,8 +56,8 @@ const CSS = `
   .o-resp { color: #4b5563; font-size: 9.5pt; }
   .transcript { break-before: page; }
   .seg { display: grid; grid-template-columns: 34pt 1fr; gap: 8pt; font-size: 9pt; padding: 2.5pt 0; break-inside: avoid; }
-  .seg .t { color: #9ca3af; font-family: Menlo, monospace; font-size: 8pt; padding-top: 1pt; }
-  .perf { margin-top: 14pt; color: #8a8f98; font: 7.5pt Menlo, monospace; }
+  .seg .t { color: #9ca3af; font-family: Menlo, Consolas, monospace; font-size: 8pt; padding-top: 1pt; }
+  .perf { margin-top: 14pt; color: #8a8f98; font: 7.5pt Menlo, Consolas, monospace; }
 `;
 
 function buildHtml(record, { includeTranscript = true } = {}) {
@@ -155,7 +155,7 @@ async function renderPdf(record, opts) {
       margins: { top: 0.5, bottom: 0.6, left: 0.55, right: 0.55 },
       displayHeaderFooter: true,
       headerTemplate: '<div></div>',
-      footerTemplate: `<div style="width:100%;font-size:7px;color:#9aa0aa;padding:0 40px;display:flex;justify-content:space-between;font-family:-apple-system,Helvetica,Arial"><span>Pitchlens · ${esc(record.fileName)}</span><span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`,
+      footerTemplate: `<div style="width:100%;font-size:7px;color:#9aa0aa;padding:0 40px;display:flex;justify-content:space-between;font-family:-apple-system,'Segoe UI',Helvetica,Arial"><span>Pitchlens · ${esc(record.fileName)}</span><span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`,
     });
   } finally {
     win.destroy();
