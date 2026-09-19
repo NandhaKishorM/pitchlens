@@ -4,10 +4,7 @@ A small service that **hosts the GGUF models** and runs the Pitchlens pipeline a
 [LangGraph](https://docs.langchain.com/oss/javascript/langgraph/overview) graph, so several people (or
 several machines) can share one GPU instead of each laptop loading its own copy of the models.
 
-```
-Electron app ──HTTP──▶ orchestrator ──▶ LangGraph pipeline ──▶ llama-server (Qwen3-ASR)
-  (or curl)              queue · engine pool                └─▶ llama-server (Qwen3.5 2B)
-```
+![API architecture](../docs/api-architecture.svg)
 
 ## What the orchestrator does
 

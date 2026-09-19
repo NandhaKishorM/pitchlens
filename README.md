@@ -157,6 +157,8 @@ cd server && npm install && npm start      # hosts the GGUF models on :8787
 cd .. && PITCHLENS_SERVER_URL=http://your-server:8787 npm start
 ```
 
+![API architecture](docs/api-architecture.svg)
+
 The orchestrator keeps an engine pool (starting, health-checking and unloading `llama-server` per model),
 queues jobs so one GPU is not oversubscribed, runs the pipeline as a LangGraph graph
 (`prepare → transcribe → condense? → analyze → finalize`), and streams progress to clients. The models can

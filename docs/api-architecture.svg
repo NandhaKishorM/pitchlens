@@ -1,0 +1,199 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1320 880" width="1320" height="880" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-label="Pitchlens API architecture: clients call the HTTP API, which submits jobs to the orchestrator, which runs the LangGraph pipeline against ffmpeg and two llama-server engines.">
+  <style>
+    .t   { fill: #16181d; }
+    .mut { fill: #6b7280; }
+    .sec { fill: #8a8f98; font-size: 11px; font-weight: 700; letter-spacing: 1.4px; }
+    .h1  { font-size: 23px; font-weight: 700; letter-spacing: -0.4px; }
+    .h2  { font-size: 15px; font-weight: 650; }
+    .sub { font-size: 11.5px; }
+    .mono{ font-family: 'SF Mono', Menlo, Consolas, monospace; }
+    .lbl { font-size: 11.5px; fill: #4460d6; font-weight: 600; }
+    .dlbl{ font-size: 11.5px; fill: #7b8190; font-weight: 600; }
+    .panel { fill: #f7f8fa; stroke: #e1e5ec; }
+    .card  { fill: #ffffff; stroke: #dfe3ea; }
+    .accent{ fill: #eef2ff; stroke: #c3cef7; }
+    .engine{ fill: #f0faf5; stroke: #a9dcc3; }
+    .flow  { stroke: #8da2ee; stroke-width: 2; fill: none; }
+    .ev    { stroke: #9aa0aa; stroke-width: 2; fill: none; stroke-dasharray: 6 5; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8da2ee"/>
+    </marker>
+    <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9aa0aa"/>
+    </marker>
+  </defs>
+
+  <rect width="1320" height="880" fill="#ffffff"/>
+
+  <!-- header -->
+  <g transform="translate(40,44)">
+    <rect x="0" y="-14" width="11" height="11" rx="3" fill="#6f8fff"/>
+    <text x="22" y="-4" class="t h1">Pitchlens API architecture</text>
+    <text x="0" y="22" class="mut" font-size="13">How the desktop app, the HTTP API, the orchestrator and the model engines connect.</text>
+  </g>
+
+  <!-- clients -->
+  <text x="40" y="112" class="sec">CLIENTS</text>
+  <g>
+    <rect x="40" y="124" width="240" height="94" rx="10" class="accent"/>
+    <text x="60" y="154" class="t h2">Pitchlens desktop app</text>
+    <text x="60" y="174" class="mut sub">Electron main process</text>
+    <text x="60" y="193" class="mut sub mono">src/core/remoteClient.js</text>
+    <text x="60" y="209" class="mut sub">uploads audio · follows progress</text>
+
+    <rect x="40" y="234" width="240" height="74" rx="10" class="card"/>
+    <text x="60" y="262" class="t h2">Any HTTP client</text>
+    <text x="60" y="282" class="mut sub mono">curl · server/scripts/smoke.js</text>
+    <text x="60" y="298" class="mut sub">scripts, CI, other tools</text>
+  </g>
+
+  <!-- legend -->
+  <g>
+    <rect x="40" y="344" width="240" height="132" rx="10" class="card"/>
+    <text x="60" y="370" class="sec">LEGEND</text>
+    <line x1="60" y1="392" x2="100" y2="392" class="flow" marker-end="url(#a)"/>
+    <text x="110" y="396" class="mut sub">request / call</text>
+    <line x1="60" y1="418" x2="100" y2="418" class="ev" marker-end="url(#b)"/>
+    <text x="110" y="422" class="mut sub">stream of events</text>
+    <text x="60" y="448" class="mut sub">Auth: <tspan class="mono">X-API-Key</tspan> header</text>
+    <text x="60" y="464" class="mut sub">when PITCHLENS_API_KEY is set</text>
+  </g>
+
+  <!-- HTTP API -->
+  <text x="330" y="112" class="sec">HTTP API</text>
+  <rect x="330" y="124" width="420" height="356" rx="12" class="panel"/>
+  <text x="350" y="150" class="mut sub mono">server/src/server.js</text>
+
+  <g>
+    <rect x="350" y="162" width="52" height="19" rx="5" fill="#dff0e6"/>
+    <text x="376" y="176" text-anchor="middle" class="mono" font-size="10.5" fill="#16935c" font-weight="700">POST</text>
+    <text x="412" y="177" class="t mono" font-size="12.5">/v1/jobs</text>
+    <text x="350" y="196" class="mut sub">upload audio as the raw body · <tspan class="mono">X-Filename</tspan> · returns job id</text>
+
+    <rect x="350" y="214" width="52" height="19" rx="5" fill="#e6ecfd"/>
+    <text x="376" y="228" text-anchor="middle" class="mono" font-size="10.5" fill="#4460d6" font-weight="700">GET</text>
+    <text x="412" y="229" class="t mono" font-size="12.5">/v1/jobs/:id/events</text>
+    <text x="350" y="248" class="mut sub">live progress (SSE): state · progress · done · error</text>
+
+    <rect x="350" y="266" width="52" height="19" rx="5" fill="#e6ecfd"/>
+    <text x="376" y="280" text-anchor="middle" class="mono" font-size="10.5" fill="#4460d6" font-weight="700">GET</text>
+    <text x="412" y="281" class="t mono" font-size="12.5">/v1/jobs/:id/result</text>
+    <text x="350" y="300" class="mut sub">the finished report · 409 while still running</text>
+
+    <rect x="350" y="318" width="52" height="19" rx="5" fill="#fbe4e4"/>
+    <text x="376" y="332" text-anchor="middle" class="mono" font-size="10.5" fill="#d14343" font-weight="700">DEL</text>
+    <text x="412" y="333" class="t mono" font-size="12.5">/v1/jobs/:id</text>
+    <text x="350" y="352" class="mut sub">cancel a queued or running job</text>
+
+    <rect x="350" y="370" width="52" height="19" rx="5" fill="#e6ecfd"/>
+    <text x="376" y="384" text-anchor="middle" class="mono" font-size="10.5" fill="#4460d6" font-weight="700">GET</text>
+    <text x="412" y="385" class="t mono" font-size="12.5">/health · /metrics · /v1/engines</text>
+    <text x="350" y="404" class="mut sub">readiness, engine states, queue depth, counters</text>
+
+    <line x1="350" y1="424" x2="730" y2="424" stroke="#e1e5ec" stroke-width="1"/>
+    <text x="350" y="446" class="mut sub">API key check · upload size limit · temp file per job</text>
+    <text x="350" y="464" class="mut sub">SSE replay via <tspan class="mono">Last-Event-ID</tspan> so a reconnect misses nothing</text>
+  </g>
+
+  <!-- orchestrator -->
+  <text x="800" y="112" class="sec">ORCHESTRATOR</text>
+  <rect x="800" y="124" width="440" height="356" rx="12" class="panel"/>
+  <text x="820" y="150" class="mut sub mono">server/src/orchestrator.js</text>
+
+  <rect x="820" y="164" width="400" height="86" rx="10" class="card"/>
+  <text x="840" y="192" class="t h2">Job queue</text>
+  <text x="840" y="212" class="mut sub">one job at a time by default · queue positions</text>
+  <text x="840" y="230" class="mut sub">cancellation · timeouts · finished jobs expire</text>
+
+  <rect x="820" y="264" width="400" height="86" rx="10" class="card"/>
+  <text x="840" y="292" class="t h2">Engine pool</text>
+  <text x="840" y="312" class="mut sub">starts and health-checks each model engine</text>
+  <text x="840" y="330" class="mut sub">restarts on crash · unloads when idle to free GPU</text>
+
+  <rect x="820" y="364" width="400" height="74" rx="10" class="card"/>
+  <text x="840" y="392" class="t h2">Job store &amp; metrics</text>
+  <text x="840" y="412" class="mut sub">events per job · reports · counts and durations</text>
+
+  <!-- pipeline -->
+  <text x="330" y="512" class="sec">PIPELINE — LANGGRAPH STATE GRAPH (server/src/graph.js)</text>
+  <rect x="330" y="524" width="910" height="112" rx="12" class="panel"/>
+  <g>
+    <rect x="348" y="552" width="150" height="62" rx="9" class="card"/>
+    <text x="423" y="578" text-anchor="middle" class="t h2">prepare</text>
+    <text x="423" y="597" text-anchor="middle" class="mut sub">decode &amp; split audio</text>
+
+    <rect x="516" y="552" width="150" height="62" rx="9" class="card"/>
+    <text x="591" y="578" text-anchor="middle" class="t h2">transcribe</text>
+    <text x="591" y="597" text-anchor="middle" class="mut sub">chunk → text</text>
+
+    <rect x="684" y="552" width="150" height="62" rx="9" class="card"/>
+    <text x="759" y="578" text-anchor="middle" class="t h2">condense?</text>
+    <text x="759" y="597" text-anchor="middle" class="mut sub">only for long calls</text>
+
+    <rect x="852" y="552" width="150" height="62" rx="9" class="card"/>
+    <text x="927" y="578" text-anchor="middle" class="t h2">analyze</text>
+    <text x="927" y="597" text-anchor="middle" class="mut sub">coaching report</text>
+
+    <rect x="1020" y="552" width="150" height="62" rx="9" class="card"/>
+    <text x="1095" y="578" text-anchor="middle" class="t h2">finalize</text>
+    <text x="1095" y="597" text-anchor="middle" class="mut sub">stats &amp; cleanup</text>
+
+    <line x1="498" y1="583" x2="514" y2="583" class="flow" marker-end="url(#a)"/>
+    <line x1="666" y1="583" x2="682" y2="583" class="flow" marker-end="url(#a)"/>
+    <line x1="834" y1="583" x2="850" y2="583" class="flow" marker-end="url(#a)"/>
+    <line x1="1002" y1="583" x2="1018" y2="583" class="flow" marker-end="url(#a)"/>
+  </g>
+
+  <!-- engines -->
+  <text x="330" y="676" class="sec">ENGINES</text>
+  <rect x="330" y="688" width="280" height="88" rx="10" class="card"/>
+  <text x="352" y="716" class="t h2">ffmpeg</text>
+  <text x="352" y="736" class="mut sub">16 kHz mono · detects pauses</text>
+  <text x="352" y="754" class="mut sub">splits into ~25 s chunks</text>
+
+  <rect x="630" y="688" width="300" height="88" rx="10" class="engine"/>
+  <text x="652" y="716" class="t h2">llama-server · speech</text>
+  <text x="652" y="736" class="mut sub mono">Qwen3-ASR-0.6B-Q8_0.gguf</text>
+  <text x="652" y="754" class="mut sub">OpenAI-style audio requests</text>
+
+  <rect x="950" y="688" width="290" height="88" rx="10" class="engine"/>
+  <text x="972" y="716" class="t h2">llama-server · analysis</text>
+  <text x="972" y="736" class="mut sub mono">Qwen3.5-2B-Q4_K_M.gguf</text>
+  <text x="972" y="754" class="mut sub">streamed JSON, schema-constrained</text>
+
+  <!-- client → api -->
+  <line x1="280" y1="164" x2="328" y2="164" class="flow" marker-end="url(#a)"/>
+  <text x="304" y="152" text-anchor="middle" class="lbl">1 upload</text>
+  <line x1="280" y1="270" x2="328" y2="270" class="flow" marker-end="url(#a)"/>
+
+  <!-- api → orchestrator -->
+  <line x1="750" y1="200" x2="798" y2="200" class="flow" marker-end="url(#a)"/>
+  <text x="774" y="188" text-anchor="middle" class="lbl">2 submit</text>
+
+  <!-- orchestrator → pipeline -->
+  <path d="M1020 480 V524" class="flow" marker-end="url(#a)"/>
+  <text x="1034" y="506" class="lbl">3 run graph</text>
+
+  <!-- pipeline → engines -->
+  <path d="M423 614 V688" class="flow" marker-end="url(#a)"/>
+  <text x="433" y="654" class="lbl">4 decode</text>
+  <path d="M591 614 V660 H780 V688" class="flow" marker-end="url(#a)"/>
+  <text x="700" y="652" text-anchor="middle" class="lbl">5 audio chunk</text>
+  <path d="M927 614 V660 H1095 V688" class="flow" marker-end="url(#a)"/>
+  <text x="1012" y="652" text-anchor="middle" class="lbl">6 transcript</text>
+
+  <!-- graph events → orchestrator → api -->
+  <path d="M330 580 H300 V444 H328" class="ev" marker-end="url(#b)"/>
+  <text x="296" y="600" text-anchor="end" class="dlbl">7 graph events</text>
+  <path d="M330 300 H300 V186 H278" class="ev" marker-end="url(#b)"/>
+  <text x="296" y="322" text-anchor="end" class="dlbl">8 SSE progress</text>
+
+  <!-- engine pool supervises engines -->
+  <path d="M1240 306 H1284 V732 H1242" class="ev" marker-end="url(#b)"/>
+  <text x="1294" y="520" class="dlbl" transform="rotate(-90 1294 520)" text-anchor="middle">start · health · unload</text>
+
+  <text x="330" y="812" class="mut sub">Engines run as child processes on the orchestrator host, or as existing llama-server instances on another machine</text>
+  <text x="330" y="830" class="mut sub">(<tspan class="mono">PITCHLENS_ASR_URL</tspan> / <tspan class="mono">PITCHLENS_LLM_URL</tspan>). The desktop app can also skip the server and run both engines itself.</text>
+</svg>
