@@ -1,0 +1,19 @@
+{
+  "name": "pitchlens-orchestrator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LangGraph orchestrator that hosts the GGUF models and serves the Pitchlens pipeline over HTTP.",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "smoke": "node scripts/smoke.js"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "@langchain/core": "^1.2.11",
+    "@langchain/langgraph": "^1.4.16",
+    "zod": "^4.2.0"
+  }
+}

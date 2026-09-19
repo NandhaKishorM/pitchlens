@@ -135,6 +135,9 @@ audio file ─▶ ffmpeg ─▶ Qwen3-ASR 0.6B ─▶ Qwen3.5 2B ─▶ report (
 | Engines | `src/core/llamaServer.js`, `engines.js` | Start, health-check and stop the two `llama-server` processes |
 | Tools | `src/core/proc.js` | Cross-platform lookup of `llama-server` / `ffmpeg` binaries |
 | PDF | `src/main/reportPdf.js` | Print-friendly report layout → PDF |
+| Client | `src/core/remoteClient.js` | Uploads to the orchestrator and follows its progress stream |
+| Orchestrator | `server/src/orchestrator.js` | Engine pool, job queue, cancellation, idle unload |
+| Graph | `server/src/graph.js` | The pipeline as a LangGraph state graph |
 
 ### Privacy (zero egress)
 
@@ -143,6 +146,25 @@ audio file ─▶ ffmpeg ─▶ Qwen3-ASR 0.6B ─▶ Qwen3.5 2B ─▶ report (
 - The renderer is sandboxed with context isolation; permission requests are denied.
 - Analyses are saved locally: `~/Library/Application Support/pitchlens/history` on macOS,
   `%APPDATA%\pitchlens\history` on Windows.
+
+## Run the models on a server (optional)
+
+By default the app loads the models itself. It can instead talk to the **LangGraph orchestrator** in
+[`server/`](server/README.md), so one machine with a GPU serves several people:
+
+```bash
+cd server && npm install && npm start      # hosts the GGUF models on :8787
+cd .. && PITCHLENS_SERVER_URL=http://your-server:8787 npm start
+```
+
+The orchestrator keeps an engine pool (starting, health-checking and unloading `llama-server` per model),
+queues jobs so one GPU is not oversubscribed, runs the pipeline as a LangGraph graph
+(`prepare → transcribe → condense? → analyze → finalize`), and streams progress to clients. The models can
+also live on yet another machine via `PITCHLENS_ASR_URL` / `PITCHLENS_LLM_URL`. Full API and settings:
+[`server/README.md`](server/README.md).
+
+**Note:** zero egress applies to the default local mode. In server mode your audio and transcripts go to
+that server, so put it behind an API key and TLS if it is not on your own machine.
 
 ## Performance
 

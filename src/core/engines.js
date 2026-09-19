@@ -24,29 +24,45 @@ function checkRequirements() {
   return problems;
 }
 
-function createEngines() {
-  const bin = findBin('llama-server');
-  const asr = new LlamaServer('Speech', bin, [
-    '-m', modelPath(config.asr.model),
-    '--mmproj', modelPath(config.asr.mmproj),
-    '-c', String(config.asr.ctx),
-    '-np', String(config.asr.slots),
-    '-ngl', '99',
-    '--cache-ram', '0',
-    '--no-warmup',
-  ]);
-  const llm = new LlamaServer('Analysis', bin, [
-    '-m', modelPath(config.llm.model),
-    '-c', String(config.llm.ctx),
-    '-np', '1',
-    '-ngl', '99',
-    '-fa', 'on',
-    '--jinja',
-    '--reasoning', 'off',
-    '--chat-template-kwargs', '{"enable_thinking":false}',
-    '--cache-ram', '256',
-  ]);
-  return { asr, llm };
+// Shared argument sets so the app and the orchestrator start identical engines.
+function engineSpecs() {
+  return {
+    asr: {
+      name: 'Speech',
+      args: [
+        '-m', modelPath(config.asr.model),
+        '--mmproj', modelPath(config.asr.mmproj),
+        '-c', String(config.asr.ctx),
+        '-np', String(config.asr.slots),
+        '-ngl', '99',
+        '--cache-ram', '0',
+        '--no-warmup',
+      ],
+    },
+    llm: {
+      name: 'Analysis',
+      args: [
+        '-m', modelPath(config.llm.model),
+        '-c', String(config.llm.ctx),
+        '-np', '1',
+        '-ngl', '99',
+        '-fa', 'on',
+        '--jinja',
+        '--reasoning', 'off',
+        '--chat-template-kwargs', '{"enable_thinking":false}',
+        '--cache-ram', '256',
+      ],
+    },
+  };
 }
 
-module.exports = { createEngines, checkRequirements };
+function createEngines() {
+  const bin = findBin('llama-server');
+  const specs = engineSpecs();
+  return {
+    asr: new LlamaServer(specs.asr.name, bin, specs.asr.args),
+    llm: new LlamaServer(specs.llm.name, bin, specs.llm.args),
+  };
+}
+
+module.exports = { createEngines, checkRequirements, engineSpecs, modelPath };

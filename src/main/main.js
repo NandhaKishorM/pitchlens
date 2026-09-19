@@ -6,6 +6,7 @@ const { renderPdf } = require('./reportPdf');
 const config = require('../core/config');
 const { createEngines, checkRequirements } = require('../core/engines');
 const { runPipeline } = require('../core/pipeline');
+const { runRemotePipeline, serverHealth } = require('../core/remoteClient');
 const history = require('./history');
 
 const AUDIO_EXTS = ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'oga', 'opus', 'flac', 'webm', 'mp4', 'mov', 'wma', 'amr', 'caf', 'aiff'];
@@ -14,6 +15,12 @@ let win = null;
 let engines = null;
 let problems = [];
 const jobs = new Map();
+
+// With PITCHLENS_SERVER_URL set, the models live on an orchestrator and this app
+// is just its client; otherwise the app runs them itself.
+const remoteMode = !!config.server.url;
+let serverState = { reachable: false };
+let serverPoll = null;
 
 // Zero egress: the renderer may only load local resources. The model servers
 // are spawned by the main process on 127.0.0.1 and are not reachable from the page.
@@ -29,13 +36,48 @@ function lockDownNetwork() {
 }
 
 function engineStatus() {
+  if (remoteMode) {
+    const remote = serverState.engines || {};
+    const pick = (engine) => ({
+      state: !serverState.reachable ? 'error' : engine?.state === 'error' ? 'error' : problems.length ? 'error' : 'ready',
+      error: serverState.error || engine?.error || null,
+      loadMs: engine?.loadMs ?? null,
+      lastLog: '',
+    });
+    return {
+      mode: 'server',
+      problems,
+      server: {
+        url: config.server.url,
+        reachable: serverState.reachable,
+        queue: serverState.queue || null,
+        engineKind: remote.asr?.kind || null,
+      },
+      asr: pick(remote.asr),
+      llm: pick(remote.llm),
+      models: { asr: remote.asr?.model || config.asr.model, llm: remote.llm?.model || config.llm.model },
+    };
+  }
   const pick = (s) => (s ? { state: s.state, error: s.error, loadMs: s.loadMs, lastLog: s.log.at(-1) || '' } : { state: 'unavailable' });
   return {
+    mode: 'local',
     problems,
     asr: pick(engines?.asr),
     llm: pick(engines?.llm),
     models: { asr: config.asr.model, llm: config.llm.model },
   };
+}
+
+async function pollServer() {
+  try {
+    const health = await serverHealth(config.server);
+    serverState = { reachable: true, ...health };
+    problems = health.problems || [];
+  } catch (err) {
+    serverState = { reachable: false, error: err.message };
+    problems = [`Cannot reach the orchestrator at ${config.server.url}: ${err.message}`];
+  }
+  broadcastStatus();
 }
 
 function broadcastStatus(server) {
@@ -45,6 +87,14 @@ function broadcastStatus(server) {
 }
 
 function bootEngines() {
+  if (remoteMode) {
+    pollServer();
+    if (!serverPoll) {
+      serverPoll = setInterval(pollServer, 10_000);
+      serverPoll.unref?.();
+    }
+    return;
+  }
   problems = checkRequirements();
   if (problems.length) return broadcastStatus();
   if (!engines) {
@@ -120,14 +170,16 @@ ipcMain.handle('samples:list', () => {
 ipcMain.handle('analyze:start', async (event, { jobId, filePath }) => {
   assertAudioFile(filePath);
   if (problems.length) throw new Error(problems.join('\n'));
-  if (!engines) bootEngines();
+  if (!remoteMode && !engines) bootEngines();
   const controller = new AbortController();
   jobs.set(jobId, controller);
   const send = (payload) => {
     if (!event.sender.isDestroyed()) event.sender.send('analyze:progress', { jobId, ...payload });
   };
   try {
-    const result = await runPipeline({ file: filePath, engines, signal: controller.signal, emit: send });
+    const result = remoteMode
+      ? await runRemotePipeline({ file: filePath, server: config.server, signal: controller.signal, emit: send })
+      : await runPipeline({ file: filePath, engines, signal: controller.signal, emit: send });
     console.log('[pipeline]', path.basename(filePath), result.stats);
     return history.save({ fileName: path.basename(filePath), filePath, ...result });
   } finally {
@@ -231,6 +283,7 @@ app.whenReady().then(() => {
 
 function shutdown() {
   for (const c of jobs.values()) c.abort();
+  if (serverPoll) clearInterval(serverPoll);
   engines?.asr.stop();
   engines?.llm.stop();
 }

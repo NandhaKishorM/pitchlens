@@ -212,18 +212,28 @@ async function condense(server, transcriptText, { signal, onStatus }) {
   return notes.join('\n\n');
 }
 
+// True when the transcript would not leave room for the system prompt and answer.
+function needsCondense(transcriptText) {
+  const budget = config.llm.ctx - config.llm.maxOutputTokens - approxTokens(SYSTEM_PROMPT) - 300;
+  return approxTokens(transcriptText) > budget;
+}
+
 async function analyze(server, segments, { duration, signal, onToken, onStatus } = {}) {
   let transcriptText = transcriptToText(segments);
   if (!transcriptText.trim()) throw new Error('No speech was detected in this recording.');
 
   let label = 'TRANSCRIPT';
-  const budget = config.llm.ctx - config.llm.maxOutputTokens - approxTokens(SYSTEM_PROMPT) - 300;
-  if (approxTokens(transcriptText) > budget) {
+  if (needsCondense(transcriptText)) {
     transcriptText = await condense(server, transcriptText, { signal, onStatus });
     label = 'CALL NOTES (condensed from a long transcript)';
   }
 
   onStatus?.('Analyzing call');
+  return analyzeTranscript(server, transcriptText, { duration, label, signal, onToken });
+}
+
+// One analysis pass over a transcript (or condensed notes) that already fits.
+async function analyzeTranscript(server, transcriptText, { duration, label = 'TRANSCRIPT', signal, onToken } = {}) {
   const { text, timings } = await chat(server, {
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
@@ -242,4 +252,7 @@ async function analyze(server, segments, { duration, signal, onToken, onStatus }
   return { analysis: normalize(parseJson(text)), timings };
 }
 
-module.exports = { analyze, normalize, transcriptToText, fmtTime, SCHEMA };
+module.exports = {
+  analyze, analyzeTranscript, condense, needsCondense,
+  normalize, transcriptToText, fmtTime, SCHEMA,
+};

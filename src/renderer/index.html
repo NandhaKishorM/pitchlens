@@ -28,7 +28,7 @@
         </button>
         <div class="privacy">
           <svg viewBox="0 0 24 24" class="icon"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
-          On-device · zero egress
+          <span id="privacyNote">On-device · zero egress</span>
         </div>
       </div>
     </aside>
@@ -41,7 +41,7 @@
       <section id="view-upload" class="view">
         <div class="upload-wrap">
           <h1 class="hero-title">Coach every sales call.</h1>
-          <p class="hero-sub">Drop in a recording to get a transcript, summary, conversion probability and coaching. Everything runs locally on this computer.</p>
+          <p class="hero-sub" id="heroSub">Drop in a recording to get a transcript, summary, conversion probability and coaching. Everything runs locally on this computer.</p>
 
           <div id="problems" class="problems" hidden></div>
 
@@ -75,7 +75,7 @@
           <div class="features">
             <div class="feature"><div class="f-k">Transcription</div><div class="f-v" id="asrModelName">Qwen3-ASR 0.6B</div></div>
             <div class="feature"><div class="f-k">Coaching model</div><div class="f-v" id="llmModelName">Qwen3.5 2B</div></div>
-            <div class="feature"><div class="f-k">Network</div><div class="f-v">Offline · zero egress</div></div>
+            <div class="feature"><div class="f-k">Network</div><div class="f-v" id="networkMode">Offline · zero egress</div></div>
           </div>
 
           <div id="samplesBlock" class="samples" hidden>

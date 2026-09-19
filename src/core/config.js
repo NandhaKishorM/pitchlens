@@ -21,6 +21,13 @@ module.exports = {
     maxOutputTokens: 2048,
   },
 
+  // Set PITCHLENS_SERVER_URL to run the models on an orchestrator instead of
+  // starting them inside the app.
+  server: {
+    url: (process.env.PITCHLENS_SERVER_URL || '').replace(/\/$/, ''),
+    apiKey: process.env.PITCHLENS_API_KEY || '',
+  },
+
   // Audio is cut at silences into chunks of roughly this length (seconds).
   chunk: { target: 25, min: 12, max: 35 },
 };

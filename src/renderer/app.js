@@ -106,7 +106,8 @@ function show(name, title) {
 let engineState = null;
 function renderEngineLoad(status) {
   const panel = $('#engineLoad');
-  if (status.problems?.length) {
+  // In server mode the orchestrator owns model loading; nothing to show here.
+  if (status.problems?.length || status.mode === 'server') {
     panel.hidden = true;
     return;
   }
@@ -146,12 +147,35 @@ function renderEngineLoad(status) {
   }
 }
 
+function hostOf(url) {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
+
 function renderEngineStatus(status) {
   engineState = status;
   renderEngineLoad(status);
   const btn = $('#engineStatus');
   const text = $('.engine-text', btn);
   btn.classList.remove('ready', 'error');
+
+  // Where the models actually run: in this app, or on an orchestrator.
+  const onServer = status.mode === 'server';
+  const network = $('#networkMode');
+  const privacy = $('#privacyNote');
+  if (onServer) {
+    network.textContent = status.server?.reachable ? `Server · ${hostOf(status.server.url)}` : 'Server unreachable';
+    network.title = status.server?.url || '';
+    privacy.textContent = 'Processed on your server';
+    $('#heroSub').textContent = 'Drop in a recording to get a transcript, summary, conversion probability and coaching. Processing runs on your Pitchlens server.';
+  } else {
+    network.textContent = 'Offline · zero egress';
+    privacy.textContent = 'On-device · zero egress';
+    $('#heroSub').textContent = 'Drop in a recording to get a transcript, summary, conversion probability and coaching. Everything runs locally on this computer.';
+  }
 
   const problems = $('#problems');
   if (status.problems?.length) {
@@ -169,16 +193,27 @@ function renderEngineStatus(status) {
   const states = [status.asr.state, status.llm.state];
   if (states.every((s) => s === 'ready')) {
     btn.classList.add('ready');
-    text.textContent = 'Models loaded';
-    btn.title = `Speech ${status.models.asr} · ${status.asr.loadMs} ms\nAnalysis ${status.models.llm} · ${status.llm.loadMs} ms`;
+    if (onServer) {
+      const queue = status.server?.queue;
+      text.textContent = 'Server ready';
+      btn.title = [
+        status.server.url,
+        `Speech ${status.models.asr}`,
+        `Analysis ${status.models.llm}`,
+        queue ? `${queue.running} running · ${queue.queued} queued` : '',
+      ].filter(Boolean).join('\n');
+    } else {
+      text.textContent = 'Models loaded';
+      btn.title = `Speech ${status.models.asr} · ${status.asr.loadMs} ms\nAnalysis ${status.models.llm} · ${status.llm.loadMs} ms`;
+    }
   } else if (states.includes('error')) {
     btn.classList.add('error');
-    text.textContent = 'Engine error · retry';
+    text.textContent = onServer ? 'Server unreachable · retry' : 'Engine error · retry';
     btn.title = status.asr.error || status.llm.error || '';
   } else {
     loadingSince ||= performance.now();
     const secs = Math.round((performance.now() - loadingSince) / 1000);
-    text.textContent = `Loading models… ${secs}s`;
+    text.textContent = onServer ? 'Connecting to server…' : `Loading models… ${secs}s`;
     btn.title = status.llm.lastLog || status.asr.lastLog || '';
     clearTimeout(loadingTick);
     loadingTick = setTimeout(async () => renderEngineStatus(await api.engineStatus()), 1000);
