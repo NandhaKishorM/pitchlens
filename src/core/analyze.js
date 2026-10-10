@@ -1,4 +1,5 @@
 const config = require('./config');
+const { voiceBrief } = require('./prosody');
 
 const SCORE_KEYS = ['rapport', 'discovery', 'pitch_clarity', 'objection_handling', 'closing'];
 
@@ -67,6 +68,7 @@ Rules:
 - "evidence" must be a short quote or close paraphrase of what the rep actually said or failed to do.
 - "better_approach" and "suggested_response" must be concrete wording the rep could use next time.
 - "suggestions" are specific tactical fixes for this call; "recommendations" are the rep's personal development priorities (skills or habits to practise).
+- You may also be given VOICE SIGNALS measured from the audio (pace, pitch movement, loudness, pauses, tension). Use them to coach delivery — a monotone pitch, a rushed pace, long dead air, a strained voice — and say which measurement you are reacting to. They describe sound, not words: never use them to claim what someone felt or thought.
 - "next_steps" are actions the rep should take with THIS prospect after the call (follow-ups, materials to send, meetings to book). Empty if the deal is clearly lost.
 - Scores are 0-10 where 5 is average, 8+ is genuinely strong.
 - conversion_probability is the chance this call leads to a sale or the rep's desired outcome:
@@ -214,11 +216,13 @@ async function condense(server, transcriptText, { signal, onStatus }) {
 
 // True when the transcript would not leave room for the system prompt and answer.
 function needsCondense(transcriptText) {
-  const budget = config.llm.ctx - config.llm.maxOutputTokens - approxTokens(SYSTEM_PROMPT) - 300;
+  // The slack covers the chat template, the instructions around the transcript
+  // and the ~150 token voice-signal block.
+  const budget = config.llm.ctx - config.llm.maxOutputTokens - approxTokens(SYSTEM_PROMPT) - 500;
   return approxTokens(transcriptText) > budget;
 }
 
-async function analyze(server, segments, { duration, signal, onToken, onStatus } = {}) {
+async function analyze(server, segments, { duration, voice, signal, onToken, onStatus } = {}) {
   let transcriptText = transcriptToText(segments);
   if (!transcriptText.trim()) throw new Error('No speech was detected in this recording.');
 
@@ -229,17 +233,18 @@ async function analyze(server, segments, { duration, signal, onToken, onStatus }
   }
 
   onStatus?.('Analyzing call');
-  return analyzeTranscript(server, transcriptText, { duration, label, signal, onToken });
+  return analyzeTranscript(server, transcriptText, { duration, voice, label, signal, onToken });
 }
 
 // One analysis pass over a transcript (or condensed notes) that already fits.
-async function analyzeTranscript(server, transcriptText, { duration, label = 'TRANSCRIPT', signal, onToken } = {}) {
+async function analyzeTranscript(server, transcriptText, { duration, voice, label = 'TRANSCRIPT', signal, onToken } = {}) {
+  const brief = voiceBrief(voice);
   const { text, timings } = await chat(server, {
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       {
         role: 'user',
-        content: `Call length: ${fmtTime(duration || 0)}\n\n${label}:\n${transcriptText}\n\nAnalyze this call and coach the rep. Respond with the JSON object only.`,
+        content: `Call length: ${fmtTime(duration || 0)}\n\n${label}:\n${transcriptText}\n${brief ? `\n${brief}\n` : ''}\nAnalyze this call and coach the rep. Respond with the JSON object only.`,
       },
     ],
     temperature: 0.3,

@@ -4,6 +4,7 @@ const path = require('path');
 const { prepareAudio } = require('./audio');
 const { transcribe } = require('./transcribe');
 const { analyze } = require('./analyze');
+const { analyzeVoice } = require('./prosody');
 
 // Runs audio → transcript → coaching analysis. `emit` receives progress events.
 async function runPipeline({ file, engines, signal, emit = () => {} }) {
@@ -13,7 +14,7 @@ async function runPipeline({ file, engines, signal, emit = () => {} }) {
   try {
     emit({ stage: 'prepare', status: 'Preparing audio' });
     // Model loading is kicked off at app start; await it alongside audio prep.
-    const [{ duration, chunks }] = await Promise.all([
+    const [{ duration, chunks, wav }] = await Promise.all([
       prepareAudio(file, workDir, { signal }),
       engines.asr.start(),
       engines.llm.start(),
@@ -30,11 +31,21 @@ async function runPipeline({ file, engines, signal, emit = () => {} }) {
     });
     stats.asrMs = Math.round(performance.now() - tAsr);
 
+    // Voice analysis is pure signal processing on the CPU — no model involved.
+    const tVoice = performance.now();
+    emit({ stage: 'voice', status: 'Reading tone of voice', done: 0, total: 1 });
+    const voice = await analyzeVoice(wav, {
+      signal,
+      onProgress: (done, total) => emit({ stage: 'voice', status: 'Reading tone of voice', done, total }),
+    });
+    stats.voiceMs = Math.round(performance.now() - tVoice);
+
     const tLlm = performance.now();
     let lastEmit = 0;
     emit({ stage: 'analyze', status: 'Analyzing call', tokens: 0 });
     const { analysis, timings } = await analyze(engines.llm, segments, {
       duration,
+      voice,
       signal,
       onStatus: (status) => emit({ stage: 'analyze', status }),
       onToken: (tokens, text) => {
@@ -55,7 +66,7 @@ async function runPipeline({ file, engines, signal, emit = () => {} }) {
     stats.totalMs = Math.round(performance.now() - t0);
     stats.realtimeFactor = +(stats.totalMs / 1000 / duration).toFixed(3);
     emit({ stage: 'done', status: 'Done' });
-    return { duration, segments, analysis, stats };
+    return { duration, segments, analysis, voice, stats };
   } finally {
     fs.rmSync(workDir, { recursive: true, force: true });
   }

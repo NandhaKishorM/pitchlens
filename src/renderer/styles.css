@@ -307,6 +307,58 @@ html[data-platform="win32"] .topbar, html[data-platform="linux"] .topbar { paddi
 .sev.medium { background: #2a2112; color: var(--warn); }
 .sev.low { background: var(--panel-2); color: var(--muted); }
 
+/* ---------- voice and delivery ---------- */
+.tone-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.tone-head > div { flex: 1; min-width: 0; }
+.tone-label { font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+.tone-detail { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+
+.spec-wrap { position: relative; border-radius: 10px; overflow: hidden; background: var(--bg); border: 1px solid var(--line); }
+canvas.spec { display: block; width: 100%; height: 132px; }
+.spec-y {
+  position: absolute; left: 7px; font: 10px var(--mono); color: var(--muted);
+  text-shadow: 0 0 4px #000, 0 0 2px #000; pointer-events: none;
+}
+.spec-y.top { top: 5px; }
+.spec-y.bottom { bottom: 5px; }
+
+.tone-strip { display: flex; gap: 1px; margin-top: 4px; }
+.tone-strip span { height: 5px; border-radius: 2px; opacity: .85; transition: opacity .2s; }
+.tone-strip span:hover { opacity: 1; }
+.spec-axis { display: flex; justify-content: space-between; font: 10.5px var(--mono); color: var(--faint); margin-top: 5px; }
+
+.voice-card .meters { margin: 18px 0 4px; }
+.voice-card .meters .score-row { grid-template-columns: 110px 1fr 34px; }
+
+.vstats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-top: 18px; }
+.vstat { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; min-width: 0; }
+.vs-k { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); }
+.vs-v { font: 600 15px var(--mono); margin-top: 3px; }
+.vs-n { font-size: 11px; color: var(--muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.moments { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.moments .tag b { font-family: var(--mono); font-size: 11.5px; }
+
+.voices-block { margin-top: 18px; }
+.voices-block .sub { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--faint); margin-bottom: 8px; }
+.voices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.voice-row { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px; }
+.voice-row .score-bar { display: block; height: 5px; margin: 8px 0 7px; background: var(--line); border-radius: 5px; overflow: hidden; }
+.voice-row .score-bar i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 5px; transition: width 1.1s var(--ease); }
+.v-head { display: flex; align-items: baseline; gap: 8px; }
+.v-name { font-weight: 550; }
+.v-hz { font: 11.5px var(--mono); color: var(--muted); }
+.v-share { margin-left: auto; font: 11.5px var(--mono); color: var(--accent); }
+.v-label { font-size: 12px; color: var(--muted); }
+
+.voice-foot { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 11.5px; line-height: 1.6; color: var(--faint); }
+
+/* Six stat tiles and two voice columns are too tight on a narrow window. */
+@media (max-width: 1180px) {
+  .vstats { grid-template-columns: repeat(3, 1fr); }
+  .voices { grid-template-columns: 1fr; }
+}
+
 .objection { padding: 12px 0; border-bottom: 1px solid var(--line); }
 .objection:first-child { padding-top: 0; }
 .objection:last-child { border-bottom: 0; padding-bottom: 0; }

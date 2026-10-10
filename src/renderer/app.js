@@ -35,6 +35,7 @@ const ICONS = {
   arrow: '<svg viewBox="0 0 24 24" class="icon"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
   shield: '<svg viewBox="0 0 24 24" class="icon"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/></svg>',
   wave: '<svg viewBox="0 0 24 24" class="icon"><path d="M3 12h2M7 8v8M11 5v14M15 8v8M19 10v4M21 12h0"/></svg>',
+  mic: '<svg viewBox="0 0 24 24" class="icon"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
 };
 
 function h(tag, props, ...children) {
@@ -321,6 +322,7 @@ let currentJob = null;
 const STEP_DEFS = [
   { id: 'prepare', label: 'Preparing audio' },
   { id: 'transcribe', label: 'Transcribing speech' },
+  { id: 'voice', label: 'Reading tone of voice' },
   { id: 'analyze', label: 'Coaching analysis' },
 ];
 const SECTION_LABELS = {
@@ -430,6 +432,12 @@ function onProgress(evt) {
 
   if (evt.stage === 'prepare') {
     job.el.prepare.bar.classList.add('indeterminate');
+  }
+
+  if (evt.stage === 'voice') {
+    const { detail, fill } = job.el.voice;
+    detail.textContent = 'Mel spectrogram and pitch';
+    fill.style.width = `${evt.total ? (evt.done / evt.total) * 100 : 0}%`;
   }
 
   if (evt.stage === 'analyze') {
@@ -611,6 +619,153 @@ function objectionsCard(a) {
   return card('Objections', 'shield', body, { i: 7, count: a.objections.length });
 }
 
+/* ---------------- voice ---------------- */
+
+// Colour ramp for the spectrogram: the app background at silence, through the
+// accent blue, into warm highlights for the loudest formants.
+const SPEC_RAMP = [
+  [0.00, [10, 11, 13]],
+  [0.22, [22, 35, 63]],
+  [0.45, [45, 74, 143]],
+  [0.68, [124, 157, 255]],
+  [0.86, [242, 181, 63]],
+  [1.00, [255, 236, 205]],
+];
+function specColor(t) {
+  for (let i = 1; i < SPEC_RAMP.length; i++) {
+    const [p1, c1] = SPEC_RAMP[i];
+    if (t > p1 && i !== SPEC_RAMP.length - 1) continue;
+    const [p0, c0] = SPEC_RAMP[i - 1];
+    const k = (t - p0) / (p1 - p0 || 1);
+    return c0.map((v, j) => Math.round(v + (c1[j] - v) * Math.min(1, Math.max(0, k))));
+  }
+  return SPEC_RAMP[0][1];
+}
+
+// 40 mel bands up the y axis, time across the x axis, loudness as colour. The
+// matrix is painted at its own resolution into an offscreen canvas, then scaled
+// up once — the browser's interpolation is cheaper and smoother than ours.
+function spectrogramCanvas(spec) {
+  const off = document.createElement('canvas');
+  off.width = spec.columns;
+  off.height = spec.bands;
+  const image = off.getContext('2d').createImageData(spec.columns, spec.bands);
+  const span = -spec.floorDb || 70;
+  for (let c = 0; c < spec.columns; c++) {
+    for (let b = 0; b < spec.bands; b++) {
+      const [r, g, bl] = specColor((spec.db[c * spec.bands + b] - spec.floorDb) / span);
+      // Low frequencies belong at the bottom; image rows run top-down.
+      const i = ((spec.bands - 1 - b) * spec.columns + c) * 4;
+      image.data[i] = r;
+      image.data[i + 1] = g;
+      image.data[i + 2] = bl;
+      image.data[i + 3] = 255;
+    }
+  }
+  off.getContext('2d').putImageData(image, 0, 0);
+
+  const canvas = h('canvas', { class: 'spec', width: 1024, height: 256 });
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(off, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+// One segment per timeline window, coloured by tension, so the eye can find
+// where the call changed without reading any numbers.
+function toneStrip(voice) {
+  const total = voice.durationS || 1;
+  return h('div', { class: 'tone-strip' }, voice.timeline.map((w) => {
+    const width = ((w.end - w.start) / total) * 100;
+    const color = w.silent ? 'var(--line)' : w.tension >= 60 ? 'var(--bad)' : w.tension >= 42 ? 'var(--warn)' : 'var(--good)';
+    const title = w.silent
+      ? `${fmtTime(w.start)}–${fmtTime(w.end)} · mostly silent`
+      : `${fmtTime(w.start)}–${fmtTime(w.end)} · energy ${w.energy} · warmth ${w.warmth} · tension ${w.tension}`;
+    return h('span', { style: `width:${width}%;background:${color}`, title });
+  }));
+}
+
+function meter(label, value, color, hint) {
+  const fill = h('i', { style: `background:${color}` });
+  requestAnimationFrame(() => requestAnimationFrame(() => (fill.style.width = `${value}%`)));
+  return h('div', { class: 'score-row', title: hint },
+    h('span', { class: 'score-name' }, label),
+    h('span', { class: 'score-bar' }, fill),
+    h('span', { class: 'score-val' }, value));
+}
+
+const paceWord = (r) => (r >= 4.6 ? 'rushed' : r >= 3.6 ? 'brisk' : r >= 2.4 ? 'measured' : 'slow');
+const pitchWord = (v) => (v >= 3 ? 'expressive' : v >= 1.6 ? 'moderate' : v >= 0.9 ? 'fairly flat' : 'monotone');
+
+function voiceCard(voice) {
+  const f = voice.features;
+  const s = voice.scores;
+  const stat = (key, value, note) => h('div', { class: 'vstat' },
+    h('div', { class: 'vs-k' }, key),
+    h('div', { class: 'vs-v' }, value),
+    note ? h('div', { class: 'vs-n' }, note) : null);
+
+  const voices = voice.voices
+    ? h('div', { class: 'voices' }, voice.voices.map((v) => {
+      const fill = h('i');
+      requestAnimationFrame(() => requestAnimationFrame(() => (fill.style.width = `${v.talkShare * 100}%`)));
+      return h('div', { class: 'voice-row' },
+        h('div', { class: 'v-head' },
+          h('span', { class: 'v-name' }, `${v.id === 'lower' ? 'Lower' : 'Higher'} voice`),
+          h('span', { class: 'v-hz' }, `${v.medianF0} Hz`),
+          h('span', { class: 'v-share' }, `${Math.round(v.talkShare * 100)}% of speech`)),
+        h('span', { class: 'score-bar' }, fill),
+        h('div', { class: 'v-label' }, `${v.label} · energy ${v.energy} · warmth ${v.warmth} · tension ${v.tension}`));
+    }))
+    : h('div', { class: 'empty-note' }, voice.voicesNote || 'Could not separate two voices.');
+
+  const body = h('div', null,
+    h('div', { class: 'tone-head' },
+      h('div', null,
+        h('div', { class: 'tone-label' }, voice.label),
+        h('div', { class: 'tone-detail' }, voice.detail)),
+      h('span', { class: `tag ${voice.confidence === 'high' ? 'good' : voice.confidence === 'low' ? 'bad' : 'warn'}` }, `${voice.confidence} confidence`)),
+
+    h('div', { class: 'spec-wrap' },
+      spectrogramCanvas(voice.spectrogram),
+      h('span', { class: 'spec-y top' }, '8k'),
+      h('span', { class: 'spec-y bottom' }, '50 Hz')),
+    toneStrip(voice),
+    h('div', { class: 'spec-axis' }, [0, 0.25, 0.5, 0.75, 1].map((p) =>
+      h('span', null, fmtTime(voice.durationS * p)))),
+
+    h('div', { class: 'meters scores' },
+      meter('Vocal energy', s.energy, 'var(--accent)', 'Pitch movement, pace, loudness and how much the loudness varies'),
+      meter('Warmth', s.warmth, 'var(--good)', 'Expressive, steady delivery with few dead spots'),
+      meter('Tension', s.tension, s.tension >= 60 ? 'var(--bad)' : 'var(--warn)', 'Shaky pitch and loudness, upward strain inside phrases, and a fast pace')),
+
+    h('div', { class: 'vstats' },
+      stat('Pace', `${f.syllableRate}/s`, paceWord(f.syllableRate)),
+      stat('Inflection', `${f.pitchVariability} st`, pitchWord(f.pitchVariability)),
+      stat('Pitch', `${f.medianF0} Hz`, `${f.f0RangeHz[0]}–${f.f0RangeHz[1]} Hz`),
+      stat('Speech', `${Math.round((1 - f.silenceRatio) * 100)}%`, `${fmtTime(f.speakingSeconds)} of ${fmtTime(voice.durationS)}`),
+      stat('Pauses', f.pauseCount, `longest ${f.longestPauseS}s`),
+      stat('Level', `${f.loudnessAboveFloorDb} dB`, 'above noise floor')),
+
+    voice.moments.length
+      ? h('div', { class: 'moments' }, voice.moments.map((m) =>
+        h('span', { class: `tag ${m.kind === 'tension' ? 'bad' : m.kind === 'flat' ? 'warn' : 'good'}` },
+          `${m.note} `, h('b', null, `${fmtTime(m.start)}–${fmtTime(m.end)}`))))
+      : null,
+
+    h('div', { class: 'voices-block' },
+      h('div', { class: 'sub' }, 'Voices, separated by pitch (estimate — which one is the rep is not knowable from audio)'),
+      voices),
+
+    h('div', { class: 'voice-foot' },
+      `Measured from the audio alone: ${voice.spectrogram.bands}-band log-mel spectrogram, ${voice.frameMs} ms frames every ${voice.hopMs} ms, `,
+      'pitch by autocorrelation. Heuristic scores, not a trained emotion model — read them as signals, like the conversion probability.'),
+  );
+
+  return card('Voice and delivery', 'mic', body, { i: 3, cls: 'voice-card' });
+}
+
 async function transcriptCard(record) {
   const audio = h('audio', { controls: true, preload: 'metadata' });
   const url = record.filePath ? await api.fileUrl(record.filePath) : null;
@@ -630,6 +785,28 @@ async function transcriptCard(record) {
   return details;
 }
 
+function voiceMarkdown(voice) {
+  const f = voice.features;
+  const s = voice.scores;
+  const lines = [
+    `\n## Voice and delivery (measured from the audio, not the words)`,
+    `**${voice.label}** — ${voice.detail} (${voice.confidence} confidence)`,
+    `- Vocal energy ${s.energy}/100 · warmth ${s.warmth}/100 · tension ${s.tension}/100`,
+    `- Pace ${f.syllableRate}/s (${paceWord(f.syllableRate)}) · pitch movement ${f.pitchVariability} semitones (${pitchWord(f.pitchVariability)})`,
+    `- Median pitch ${f.medianF0} Hz (${f.f0RangeHz[0]}–${f.f0RangeHz[1]}) · level ${f.loudnessAboveFloorDb} dB above the noise floor`,
+    `- Speaking ${Math.round((1 - f.silenceRatio) * 100)}% of the call · ${f.pauseCount} pauses over 0.25s, longest ${f.longestPauseS}s`,
+  ];
+  for (const m of voice.moments) lines.push(`- ${m.note}: ${fmtTime(m.start)}–${fmtTime(m.end)}`);
+  if (voice.voices) {
+    for (const v of voice.voices) {
+      lines.push(`- ${v.id === 'lower' ? 'Lower' : 'Higher'} voice (${v.medianF0} Hz, ${Math.round(v.talkShare * 100)}% of speech): ${v.label}`);
+    }
+  } else if (voice.voicesNote) {
+    lines.push(`- Voice split: ${voice.voicesNote}`);
+  }
+  return lines.join('\n');
+}
+
 function reportMarkdown(record) {
   const a = record.analysis;
   const list = (xs) => xs.map((x) => `- ${x}`).join('\n') || '- None';
@@ -639,6 +816,7 @@ function reportMarkdown(record) {
     `\n## Summary\n${a.summary}`,
     `\n## Conversion outlook\n${a.probability_reasoning}`,
     `\n## Skill scores\n${Object.entries(a.scores).map(([k, v]) => `- ${k.replace(/_/g, ' ')}: ${v}/10`).join('\n')}`,
+    record.voice ? voiceMarkdown(record.voice) : '',
     `\n## Strengths\n${list(a.strengths)}`,
     `\n## Mistakes\n${a.mistakes.map((m) => `- **${m.title}** (${m.severity})\n  - What happened: ${m.evidence}\n  - Better: ${m.better_approach}`).join('\n') || '- None'}`,
     `\n## Objections\n${a.objections.map((o) => `- ${o.objection} — handled ${o.handling}. Try: ${o.suggested_response}`).join('\n') || '- None'}`,
@@ -655,6 +833,7 @@ async function renderResult(record) {
   const perf = h('div', { class: 'perf' },
     s.duration ? h('span', null, 'audio ', h('b', null, fmtTime(s.duration))) : null,
     s.asrMs ? h('span', null, 'transcription ', h('b', null, `${(s.asrMs / 1000).toFixed(1)}s`), ` (${(s.duration / (s.asrMs / 1000)).toFixed(0)}× realtime)`) : null,
+    s.voiceMs ? h('span', null, 'voice ', h('b', null, `${(s.voiceMs / 1000).toFixed(1)}s`)) : null,
     s.llmMs ? h('span', null, 'analysis ', h('b', null, `${(s.llmMs / 1000).toFixed(1)}s`)) : null,
     s.outputTps ? h('span', null, 'generation ', h('b', null, `${s.outputTps} tok/s`)) : null,
     s.totalMs ? h('span', null, 'total ', h('b', null, `${(s.totalMs / 1000).toFixed(1)}s`)) : null,
@@ -692,6 +871,8 @@ async function renderResult(record) {
         h('button', { class: 'btn btn-primary', onclick: () => show('upload') }, 'Analyze another'))),
     h('div', { class: 'grid g-hero' }, probabilityCard(a), summaryCard(a)),
     h('div', { class: 'grid g-2' }, scoresCard(a), card('What went well', 'check', bulletList(a.strengths, 'good', 'check'), { i: 3, count: a.strengths.length })),
+    // Records analyzed before the voice stage existed simply have no card.
+    record.voice ? h('div', { class: 'grid' }, voiceCard(record.voice)) : null,
     h('div', { class: 'grid' }, mistakesCard(a)),
     h('div', { class: 'grid g-2' },
       card('Suggestions for this call', 'spark', bulletList(a.suggestions, 'accent', 'arrow'), { i: 5, count: a.suggestions.length }),

@@ -12,7 +12,7 @@ several machines) can share one GPU instead of each laptop loading its own copy 
   **unloads both after an idle period** to release GPU memory. They reload automatically on the next job.
 - **Queue** — runs one job at a time by default (a single GPU), reports queue position, and supports
   cancellation and per-job timeouts.
-- **Pipeline graph** — `prepare → transcribe → (condense if the call is long) → analyze → finalize`.
+- **Pipeline graph** — `prepare → transcribe → voice → (condense if the call is long) → analyze → finalize`.
 - **Live progress** — every step is streamed to clients over Server-Sent Events.
 - **Split deployment** — the models can run on other machines entirely (see `PITCHLENS_ASR_URL` below).
 
@@ -117,5 +117,5 @@ The service binds to loopback and has no API key by default. Before exposing it 
 | `src/config.js` | Environment settings |
 | `scripts/smoke.js` | End-to-end check against a running server |
 
-The audio, speech and analysis code is shared with the desktop app (`../src/core`), so both paths behave
-identically.
+The audio, speech, voice and analysis code is shared with the desktop app (`../src/core`), so both paths
+behave identically.

@@ -6,15 +6,18 @@ const { z } = require('zod');
 
 const { prepareAudio } = require('../../src/core/audio');
 const { transcribe } = require('../../src/core/transcribe');
+const { analyzeVoice } = require('../../src/core/prosody');
 const { analyzeTranscript, condense, needsCondense, transcriptToText } = require('../../src/core/analyze');
 
-// The pipeline as a graph: prepare → transcribe → (condense) → analyze → finalize.
+// The pipeline as a graph: prepare → transcribe → voice → (condense) → analyze → finalize.
 const PipelineState = new StateSchema({
   filePath: z.string(),
   workDir: z.string().optional(),
+  wav: z.string().optional(),
   duration: z.number().optional(),
   chunks: z.array(z.any()).optional(),
   segments: z.array(z.any()).optional(),
+  voice: z.any().optional(),
   transcriptText: z.string().optional(),
   label: z.string().optional(),
   analysis: z.any().optional(),
@@ -32,7 +35,7 @@ async function prepareNode(state, config) {
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pitchlens-job-'));
 
   // Audio preparation and model loading overlap.
-  const [{ duration, chunks }] = await Promise.all([
+  const [{ duration, chunks, wav }] = await Promise.all([
     prepareAudio(state.filePath, workDir, { signal }),
     engines.asr.start(),
     engines.llm.start(),
@@ -41,6 +44,7 @@ async function prepareNode(state, config) {
   emit(config, { stage: 'transcribe', status: 'Transcribing', done: 0, total: chunks.length, duration });
   return {
     workDir,
+    wav,
     duration,
     chunks,
     stats: { ...state.stats, prepareMs: Math.round(performance.now() - t0), duration, chunks: chunks.length },
@@ -64,8 +68,20 @@ async function transcribeNode(state, config) {
   };
 }
 
+// Prosody: how the call sounded, measured from the audio with no model involved.
+async function voiceNode(state, config) {
+  const { signal } = ctx(config);
+  const t0 = performance.now();
+  emit(config, { stage: 'voice', status: 'Reading tone of voice', done: 0, total: 1 });
+  const voice = await analyzeVoice(state.wav, {
+    signal,
+    onProgress: (done, total) => emit(config, { stage: 'voice', status: 'Reading tone of voice', done, total }),
+  });
+  return { voice, stats: { ...state.stats, voiceMs: Math.round(performance.now() - t0) } };
+}
+
 // Long calls are summarised into notes before the analysis pass.
-function routeAfterTranscribe(state) {
+function routeAfterVoice(state) {
   return needsCondense(state.transcriptText) ? 'condense' : 'analyze';
 }
 
@@ -90,6 +106,7 @@ async function analyzeNode(state, config) {
   emit(config, { stage: 'analyze', status: 'Analyzing call', tokens: 0 });
   const { analysis, timings } = await analyzeTranscript(engines.llm, state.transcriptText, {
     duration: state.duration,
+    voice: state.voice,
     label: state.label,
     signal,
     onToken: (tokens, text) => {
@@ -118,12 +135,14 @@ function finalizeNode(state, config) {
 const pipeline = new StateGraph(PipelineState)
   .addNode('prepare', prepareNode)
   .addNode('transcribe', transcribeNode)
+  .addNode('voice', voiceNode)
   .addNode('condense', condenseNode)
   .addNode('analyze', analyzeNode)
   .addNode('finalize', finalizeNode)
   .addEdge(START, 'prepare')
   .addEdge('prepare', 'transcribe')
-  .addConditionalEdges('transcribe', routeAfterTranscribe, { condense: 'condense', analyze: 'analyze' })
+  .addEdge('transcribe', 'voice')
+  .addConditionalEdges('voice', routeAfterVoice, { condense: 'condense', analyze: 'analyze' })
   .addEdge('condense', 'analyze')
   .addEdge('analyze', 'finalize')
   .addEdge('finalize', END)
@@ -149,7 +168,7 @@ async function runPipelineGraph({ filePath, engines, signal, onEvent }) {
   if (!last?.analysis) throw new Error('Pipeline finished without producing an analysis');
   const stats = { ...last.stats, totalMs: Math.round(performance.now() - startedAt) };
   stats.realtimeFactor = last.duration ? +(stats.totalMs / 1000 / last.duration).toFixed(3) : null;
-  return { duration: last.duration, segments: last.segments, analysis: last.analysis, stats };
+  return { duration: last.duration, segments: last.segments, analysis: last.analysis, voice: last.voice, stats };
 }
 
 module.exports = { runPipelineGraph, pipeline, PipelineState };

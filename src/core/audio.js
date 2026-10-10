@@ -76,7 +76,8 @@ async function prepareAudio(input, workDir, { signal } = {}) {
     start: bounds[i] ?? 0,
     end: bounds[i + 1] ?? duration,
   }));
-  return { duration, chunks };
+  // `wav` is the whole call in one piece — the voice analysis reads it directly.
+  return { duration, chunks, wav };
 }
 
 module.exports = { prepareAudio, probeDuration, planCuts, parseSilences };

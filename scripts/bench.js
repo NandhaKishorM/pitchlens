@@ -71,6 +71,9 @@ async function main() {
       const mem = { asr: rssMb(engines.asr.proc?.pid), llm: rssMb(engines.llm.proc?.pid) };
       console.log(`\r  audio ${s.duration.toFixed(0)}s · ${s.chunks} chunks`.padEnd(60));
       console.log(`  prepare ${s.prepareMs} ms · asr ${s.asrMs} ms (${(s.duration / (s.asrMs / 1000)).toFixed(1)}x realtime)`);
+      const v = result.voice;
+      console.log(`  voice ${s.voiceMs} ms · ${v.label.toLowerCase()} (energy ${v.scores.energy} warmth ${v.scores.warmth} tension ${v.scores.tension}, ${v.confidence} confidence)`);
+      console.log(`  ${v.features.syllableRate}/s pace · ${v.features.pitchVariability} st inflection · ${Math.round(v.features.silenceRatio * 100)}% silence · ${v.voices ? v.voices.map((x) => `${x.medianF0}Hz ${Math.round(x.talkShare * 100)}%`).join(' / ') : 'one voice group'}`);
       console.log(`  llm ${s.llmMs} ms · prompt ${s.promptTokens} tok @ ${s.promptTps}/s · output ${s.outputTokens} tok @ ${s.outputTps}/s`);
       console.log(`  total ${(s.totalMs / 1000).toFixed(1)} s · rss speech ${mem.asr ?? 'n/a'} MB · analysis ${mem.llm ?? 'n/a'} MB`);
       console.log(`  → probability ${a.conversion_probability}% (model ${a.probability_breakdown.model}, rubric ${a.probability_breakdown.rubric}) · ${a.mistakes.length} mistakes`);
@@ -79,7 +82,7 @@ async function main() {
       const base = path.join(outDir, name.replace(/\.[^.]+$/, ''));
       fs.writeFileSync(`${base}.json`, JSON.stringify({ file: name, ...result, mem }, null, 2));
       fs.writeFileSync(`${base}.transcript.txt`, transcriptToText(result.segments));
-      rows.push({ name, audio_s: +s.duration.toFixed(0), total_s: +(s.totalMs / 1000).toFixed(1), asr_x: +(s.duration / (s.asrMs / 1000)).toFixed(1), llm_tps: s.outputTps, prob: a.conversion_probability });
+      rows.push({ name, audio_s: +s.duration.toFixed(0), total_s: +(s.totalMs / 1000).toFixed(1), asr_x: +(s.duration / (s.asrMs / 1000)).toFixed(1), llm_tps: s.outputTps, prob: a.conversion_probability, voice: v.label });
     }
     console.log('');
     console.table(rows);
