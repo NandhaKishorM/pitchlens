@@ -9,7 +9,7 @@ const { transcribe } = require('../../src/core/transcribe');
 const { analyzeVoice } = require('../../src/core/prosody');
 const { analyzeTranscript, condense, needsCondense, transcriptToText } = require('../../src/core/analyze');
 
-// The pipeline as a graph: prepare → transcribe → voice → (condense) → analyze → finalize.
+// The pipeline as a graph: prepare → transcribe → prosody → (condense) → analyze → finalize.
 const PipelineState = new StateSchema({
   filePath: z.string(),
   workDir: z.string().optional(),
@@ -69,7 +69,9 @@ async function transcribeNode(state, config) {
 }
 
 // Prosody: how the call sounded, measured from the audio with no model involved.
-async function voiceNode(state, config) {
+// The node is named `prosody` rather than `voice` because LangGraph reserves
+// state-attribute names — `voice` is a channel and cannot also be a node name.
+async function prosodyNode(state, config) {
   const { signal } = ctx(config);
   const t0 = performance.now();
   emit(config, { stage: 'voice', status: 'Reading tone of voice', done: 0, total: 1 });
@@ -135,14 +137,14 @@ function finalizeNode(state, config) {
 const pipeline = new StateGraph(PipelineState)
   .addNode('prepare', prepareNode)
   .addNode('transcribe', transcribeNode)
-  .addNode('voice', voiceNode)
+  .addNode('prosody', prosodyNode)
   .addNode('condense', condenseNode)
   .addNode('analyze', analyzeNode)
   .addNode('finalize', finalizeNode)
   .addEdge(START, 'prepare')
   .addEdge('prepare', 'transcribe')
-  .addEdge('transcribe', 'voice')
-  .addConditionalEdges('voice', routeAfterVoice, { condense: 'condense', analyze: 'analyze' })
+  .addEdge('transcribe', 'prosody')
+  .addConditionalEdges('prosody', routeAfterVoice, { condense: 'condense', analyze: 'analyze' })
   .addEdge('condense', 'analyze')
   .addEdge('analyze', 'finalize')
   .addEdge('finalize', END)

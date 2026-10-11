@@ -8,6 +8,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
+    "test": "node scripts/check-startup.js",
     "smoke": "node scripts/smoke.js"
   },
   "license": "ISC",
