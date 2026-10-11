@@ -73,9 +73,18 @@ async function followEvents({ base, server, job, signal, emit }) {
   }
 }
 
+// The orchestrator's /health is intentionally minimal and unauthenticated, so the
+// deployment inventory (engines, queue, metrics) lives behind auth. Ask for it when a
+// key is configured, falling back to /health so this still works against an older
+// orchestrator that has not split the two yet.
 async function serverHealth(server, { signal } = {}) {
   const base = server.url.replace(/\/$/, '');
-  const res = await fetch(`${base}/health`, { headers: authHeaders(server), signal });
+  const routes = server.apiKey ? ['/v1/status', '/health'] : ['/health'];
+  let res;
+  for (const route of routes) {
+    res = await fetch(`${base}${route}`, { headers: authHeaders(server), signal });
+    if (res.status !== 404) break;
+  }
   const body = await res.json();
   return { ...body, url: base, reachable: true };
 }

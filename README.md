@@ -172,12 +172,14 @@ cd .. && PITCHLENS_SERVER_URL=http://your-server:8787 npm start
 
 The orchestrator keeps an engine pool (starting, health-checking and unloading `llama-server` per model),
 queues jobs so one GPU is not oversubscribed, runs the pipeline as a LangGraph graph
-(`prepare → transcribe → voice → condense? → analyze → finalize`), and streams progress to clients. The models can
+(`prepare → transcribe → prosody → condense? → analyze → finalize`), and streams progress to clients. The models can
 also live on yet another machine via `PITCHLENS_ASR_URL` / `PITCHLENS_LLM_URL`. Full API and settings:
 [`server/README.md`](server/README.md).
 
 **Note:** zero egress applies to the default local mode. In server mode your audio and transcripts go to
-that server, so put it behind an API key and TLS if it is not on your own machine.
+that server, so put it behind an API key and TLS if it is not on your own machine. Give each person their
+own `PITCHLENS_API_KEYS` entry so nobody can read or cancel anyone else's calls — see
+[`server/README.md`](server/README.md#security).
 
 ## Performance
 

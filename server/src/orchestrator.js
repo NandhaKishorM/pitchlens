@@ -13,6 +13,9 @@ class QueueFullError extends Error {
   }
 }
 
+// True when the job has stopped and its audio can be deleted.
+const isTerminal = (job) => ['done', 'error', 'cancelled'].includes(job.state);
+
 // Owns the models and decides what runs when: one shared GPU, a queue of jobs,
 // cancellation, timeouts, and unloading the engines when nothing is happening.
 class Orchestrator extends EventEmitter {
@@ -23,6 +26,8 @@ class Orchestrator extends EventEmitter {
     this.jobTimeoutMs = options.jobTimeoutMs ?? config.jobTimeoutMs;
     this.jobTtlMs = options.jobTtlMs ?? config.jobTtlMs;
     this.idleUnloadMs = options.idleUnloadMs ?? config.idleUnloadMs;
+    this.maxJobs = options.maxJobs ?? config.maxJobs;
+    this.maxEventsPerJob = options.maxEventsPerJob ?? config.maxEventsPerJob;
 
     this.jobs = new Map();
     this.queue = [];
@@ -41,18 +46,28 @@ class Orchestrator extends EventEmitter {
     await this.engines.startAll();
   }
 
-  submit({ fileName, filePath, meta = {} }) {
-    if (this.queue.length >= this.maxQueue) throw new QueueFullError(this.maxQueue);
+  // True when a new job would be rejected for queue depth. Callers can check this
+// before doing expensive work (reading an upload) rather than after.
+atCapacity() {
+  return this.queue.length >= this.maxQueue;
+}
+
+submit({ fileName, filePath, dir, owner = null, meta = {} }) {
+    if (this.atCapacity()) throw new QueueFullError(this.maxQueue);
+    this.pruneJobs();
     const job = {
       id: crypto.randomUUID(),
       fileName,
       filePath,
+      dir: dir || null,
+      owner,
       meta,
       state: 'queued',
       createdAt: Date.now(),
       startedAt: null,
       finishedAt: null,
       events: [],
+      seq: 0,
       listeners: new Set(),
       controller: new AbortController(),
       result: null,
@@ -67,12 +82,16 @@ class Orchestrator extends EventEmitter {
     return job;
   }
 
-  get(id) {
-    return this.jobs.get(id);
+  // A job is visible only to the credential that created it. With no API key
+  // configured both sides are null, so there is a single implicit client.
+  get(id, owner) {
+    const job = this.jobs.get(id);
+    return job && job.owner === owner ? job : undefined;
   }
 
-  list() {
+  list(owner) {
     return [...this.jobs.values()]
+      .filter((job) => job.owner === owner)
       .sort((a, b) => b.createdAt - a.createdAt)
       .map((job) => this.summary(job));
   }
@@ -82,9 +101,9 @@ class Orchestrator extends EventEmitter {
     return index === -1 ? 0 : index + 1;
   }
 
-  cancel(id) {
-    const job = this.jobs.get(id);
-    if (!job || ['done', 'error', 'cancelled'].includes(job.state)) return false;
+  cancel(id, owner) {
+    const job = this.get(id, owner);
+    if (!job || isTerminal(job)) return false;
     const queued = this.queue.indexOf(job);
     if (queued !== -1) {
       this.queue.splice(queued, 1);
@@ -98,8 +117,17 @@ class Orchestrator extends EventEmitter {
 
   // Appends an event and pushes it to anyone streaming this job.
   record(job, type, data) {
-    const event = { seq: job.events.length + 1, at: Date.now(), type, data };
+    const event = { seq: ++job.seq, at: Date.now(), type, data };
     job.events.push(event);
+    // Bound the replay buffer so one long call cannot pin memory for the whole TTL.
+    // `seq` is a counter rather than events.length, so Last-Event-ID keeps working
+    // across a trim; the oldest events are dropped from the middle so a reconnecting
+    // client still sees how the job started as well as how it is going.
+    const cap = this.maxEventsPerJob;
+    if (cap > 0 && job.events.length > cap) {
+      const head = Math.max(1, Math.floor(cap / 4));
+      job.events = [...job.events.slice(0, head), ...job.events.slice(job.events.length - (cap - head))];
+    }
     for (const listener of job.listeners) {
       try {
         listener(event);
@@ -170,15 +198,38 @@ class Orchestrator extends EventEmitter {
     job.state = state;
     job.finishedAt = Date.now();
     job.error = error || null;
-    fs.rmSync(job.filePath, { force: true });
+    this.discardAudio(job);
     this.record(job, state === 'done' ? 'done' : state, state === 'done' ? { stats } : { message: error });
     for (const listener of [...job.listeners]) {
       try {
-        listener({ seq: job.events.length + 1, at: Date.now(), type: 'close', data: { state } });
+        listener({ seq: job.seq + 1, at: Date.now(), type: 'close', data: { state } });
       } catch {}
     }
     job.listeners.clear();
     this.emit('job', this.summary(job));
+  }
+
+  // Removes a job's upload. The whole temp *directory* has to go, not just the
+  // file inside it — the upload lives in a mkdtemp directory that nothing else
+  // ever cleans up, so removing only the file leaks a directory per call.
+  discardAudio(job) {
+    const target = job.dir || job.filePath;
+    if (target) fs.rmSync(target, { recursive: true, force: true });
+    job.filePath = null;
+    job.dir = null;
+  }
+
+  // Drops the oldest finished jobs once the store exceeds maxJobs. The TTL in
+  // sweep() is the normal path; this bounds memory even when jobs arrive faster
+  // than the TTL allows them to age out.
+  pruneJobs() {
+    if (!this.maxJobs || this.jobs.size < this.maxJobs) return;
+    const finished = [...this.jobs.values()].filter((job) => isTerminal(job)).sort((a, b) => a.finishedAt - b.finishedAt);
+    for (const job of finished) {
+      if (this.jobs.size < this.maxJobs) break;
+      this.discardAudio(job);
+      this.jobs.delete(job.id);
+    }
   }
 
   persist(job) {
@@ -214,12 +265,20 @@ class Orchestrator extends EventEmitter {
 
   sweep() {
     const cutoff = Date.now() - this.jobTtlMs;
+    // A job that never reached a terminal state — because the pipeline ignored the
+    // abort signal, say — used to stay in the store forever, holding its transcript
+    // and its upload. Anything still unfinished long past its timeout is stale.
+    const stale = Date.now() - this.jobTimeoutMs - 60_000;
     for (const [id, job] of this.jobs) {
-      if (job.finishedAt && job.finishedAt < cutoff) {
-        fs.rmSync(job.filePath, { force: true });
+      const expired = job.finishedAt && job.finishedAt < cutoff;
+      const stuck = !job.finishedAt && job.createdAt < stale;
+      if (expired || stuck) {
+        if (stuck) this.finish(job, 'error', { error: 'Job did not finish' });
+        this.discardAudio(job);
         this.jobs.delete(id);
       }
     }
+    this.pruneJobs();
   }
 
   summary(job) {

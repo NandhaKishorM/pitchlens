@@ -10,8 +10,10 @@ const key = process.env.PITCHLENS_API_KEY || '';
 const auth = key ? { 'x-api-key': key } : {};
 
 (async () => {
-  const health = await (await fetch(`${base}/health`)).json();
-  console.log('health:', health.ok, '· mode:', health.mode, '· engines:', Object.values(health.engines).map((e) => `${e.name}=${e.state}`).join(' '));
+  // /health is deliberately minimal and unauthenticated; the engine inventory is
+  // behind auth on /v1/status.
+  const health = await (await fetch(`${base}/v1/status`, { headers: auth })).json();
+  console.log('health:', health.ok, '· mode:', health.mode, '· engines:', Object.values(health.engines || {}).map((e) => `${e.name}=${e.state}`).join(' '));
 
   const t0 = Date.now();
   const res = await fetch(`${base}/v1/jobs`, {
